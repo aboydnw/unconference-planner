@@ -1,66 +1,72 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import NextLink from "next/link";
 
-export default function Home() {
+import {
+  Alert,
+  Box,
+  Button,
+  Container,
+  Field,
+  Heading,
+  Input,
+  Link,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
+
+import { findEvent } from "@/app/actions/attendee";
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <Container maxW="lg" py={16}>
+      <Stack gap={10}>
+        <Stack gap={3}>
+          <Heading size="2xl">Unconference Planner</Heading>
+          <Text color="fg.muted" fontSize="lg">
+            Plan your team week together. Pitch sessions, vote on what matters,
+            and build the agenda as a group.
+          </Text>
+        </Stack>
+
+        {error && (
+          <Alert.Root status="error">
+            <Alert.Indicator />
+            <Alert.Title>{error}</Alert.Title>
+          </Alert.Root>
+        )}
+
+        <Box borderWidth="1px" borderRadius="lg" p={6}>
+          <form action={findEvent}>
+            <Stack gap={4}>
+              <Heading size="md">Joining an event?</Heading>
+              <Field.Root>
+                <Field.Label>Event code</Field.Label>
+                <Input
+                  name="code"
+                  placeholder="e.g. TWKX3P"
+                  textTransform="uppercase"
+                  autoComplete="off"
+                />
+              </Field.Root>
+              <Button type="submit" colorPalette="teal">
+                Find event
+              </Button>
+            </Stack>
+          </form>
+        </Box>
+
+        <Text color="fg.muted">
+          Organizing an event?{" "}
+          <Link asChild color="teal.600" fontWeight="medium">
+            <NextLink href="/login">Sign in to get started</NextLink>
+          </Link>
+        </Text>
+      </Stack>
+    </Container>
   );
 }
