@@ -16,6 +16,8 @@ export interface UnconfEvent {
   code: string;
   status: EventStatus;
   agenda_published: boolean;
+  agenda_day_start: string;
+  agenda_day_end: string;
   created_at: string;
 }
 
@@ -54,15 +56,6 @@ export interface Vote {
   attendee_id: string;
 }
 
-export interface TimeSlot {
-  id: string;
-  event_id: string;
-  day: string;
-  start_time: string;
-  end_time: string;
-  label: string;
-}
-
 export interface Track {
   id: string;
   event_id: string;
@@ -74,8 +67,18 @@ export interface AgendaAssignment {
   id: string;
   event_id: string;
   proposal_id: string;
-  slot_id: string;
   track_id: string;
+  day: string;
+  start_time: string;
+}
+
+export interface AgendaBlock {
+  id: string;
+  event_id: string;
+  day: string;
+  start_time: string;
+  end_time: string;
+  label: string;
 }
 
 export const STATUS_LABELS: Record<EventStatus, string> = {
