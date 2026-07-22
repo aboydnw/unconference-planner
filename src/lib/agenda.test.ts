@@ -144,7 +144,7 @@ describe("blockConflictsWithSession", () => {
 describe("buildAgendaSchedule", () => {
   it("groups sessions and blocks per day, sorted by start", () => {
     const proposals = new Map<string, Proposal>([
-      ["p", { id: "p", event_id: "e", attendee_id: null, proposer_name: "Ana", title: "STAC", description: "", format: null, duration_minutes: 60, hidden: false, created_at: "" }],
+      ["p", { id: "p", event_id: "e", attendee_id: null, proposer_name: "Ana", title: "STAC", description: "", format: null, duration_minutes: 60, hidden: false, created_at: "", custom_answers: {} }],
     ]);
     const tracks = new Map<string, Track>([["t1", { id: "t1", event_id: "e", name: "Main", position: 0 }]]);
     const assignments = [
