@@ -111,7 +111,7 @@ export async function createProposal(eventId: string, formData: FormData) {
     String(formData.get("proposer_name") ?? "").trim() || "Organizer";
   const durationRaw = String(formData.get("duration_minutes") ?? "");
 
-  await supabase.from("proposals").insert({
+  const { error } = await supabase.from("proposals").insert({
     event_id: eventId,
     attendee_id: null,
     proposer_name: proposerName,
@@ -120,6 +120,7 @@ export async function createProposal(eventId: string, formData: FormData) {
     format: String(formData.get("format") ?? "").trim() || null,
     duration_minutes: durationRaw ? parseInt(durationRaw, 10) : null,
   });
+  if (error) return;
 
   revalidatePath(`/dashboard/events/${eventId}`);
   revalidatePath(`/dashboard/events/${eventId}/proposals`);
