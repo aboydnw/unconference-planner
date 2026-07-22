@@ -3,8 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  SLOT_MINUTES,
   blockConflictsWithSession,
   canPlaceSession,
+  minutesToTime,
+  sessionEndMinutes,
+  timeToMinutes,
 } from "@/lib/agenda";
 import { createClient } from "@/lib/supabase/server";
 import type {
@@ -22,13 +26,39 @@ function eventHomePath(eventId: string): string {
   return `/dashboard/events/${eventId}`;
 }
 
+function snapDown(t: string): string {
+  const m = timeToMinutes(t);
+  return minutesToTime(m - (m % SLOT_MINUTES));
+}
+
+function snapUp(t: string): string {
+  const m = timeToMinutes(t);
+  const remainder = m % SLOT_MINUTES;
+  return minutesToTime(remainder ? m + (SLOT_MINUTES - remainder) : m);
+}
+
 export async function setDailyHours(eventId: string, formData: FormData) {
-  const supabase = await createClient();
   const start = String(formData.get("agenda_day_start") ?? "");
   const end = String(formData.get("agenda_day_end") ?? "");
   if (!start || !end || end <= start) return;
 
-  await supabase
+  const ctx = await loadPlacementContext(eventId);
+  const startMin = timeToMinutes(start);
+  const endMin = timeToMinutes(end);
+  const sessionOutside = ctx.assignments.some((a) => {
+    const s = timeToMinutes(a.start_time);
+    const e = sessionEndMinutes(
+      a.start_time,
+      ctx.proposalDurations.get(a.proposal_id) ?? null,
+    );
+    return s < startMin || e > endMin;
+  });
+  const blockOutside = ctx.blocks.some(
+    (b) => timeToMinutes(b.start_time) < startMin || timeToMinutes(b.end_time) > endMin,
+  );
+  if (sessionOutside || blockOutside) return;
+
+  await ctx.supabase
     .from("events")
     .update({ agenda_day_start: start, agenda_day_end: end })
     .eq("id", eventId);
@@ -90,6 +120,14 @@ export async function assignProposal(
   const ctx = await loadPlacementContext(eventId);
   if (!ctx.event) return;
 
+  const { data: track } = await ctx.supabase
+    .from("tracks")
+    .select("id")
+    .eq("id", trackId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+  if (!track) return;
+
   const otherAssignments = ctx.assignments.filter(
     (a) => a.proposal_id !== proposalId,
   );
@@ -133,9 +171,13 @@ export async function unassignProposal(eventId: string, proposalId: string) {
 
 export async function addBlock(eventId: string, formData: FormData) {
   const day = String(formData.get("day") ?? "");
-  const start = String(formData.get("start_time") ?? "");
-  const end = String(formData.get("end_time") ?? "");
-  if (!day || !start || !end || end <= start) return;
+  const rawStart = String(formData.get("start_time") ?? "");
+  const rawEnd = String(formData.get("end_time") ?? "");
+  if (!day || !rawStart || !rawEnd || rawEnd <= rawStart) return;
+
+  const start = snapDown(rawStart);
+  const end = snapUp(rawEnd);
+  if (end <= start) return;
 
   const ctx = await loadPlacementContext(eventId);
   const conflicts = blockConflictsWithSession(

@@ -111,11 +111,11 @@ export default async function AgendaBuilderPage({
                 <Flex gap={3} align="flex-end" wrap="wrap">
                   <Field.Root required>
                     <Field.Label>Start</Field.Label>
-                    <Input name="agenda_day_start" type="time" defaultValue={event.agenda_day_start.slice(0, 5)} />
+                    <Input name="agenda_day_start" type="time" step={1800} defaultValue={event.agenda_day_start.slice(0, 5)} />
                   </Field.Root>
                   <Field.Root required>
                     <Field.Label>End</Field.Label>
-                    <Input name="agenda_day_end" type="time" defaultValue={event.agenda_day_end.slice(0, 5)} />
+                    <Input name="agenda_day_end" type="time" step={1800} defaultValue={event.agenda_day_end.slice(0, 5)} />
                   </Field.Root>
                   <Button type="submit" size="sm">Save hours</Button>
                 </Flex>
@@ -147,11 +147,11 @@ export default async function AgendaBuilderPage({
                   <Flex gap={3}>
                     <Field.Root required>
                       <Field.Label>Start</Field.Label>
-                      <Input name="start_time" type="time" />
+                      <Input name="start_time" type="time" step={1800} />
                     </Field.Root>
                     <Field.Root required>
                       <Field.Label>End</Field.Label>
-                      <Input name="end_time" type="time" />
+                      <Input name="end_time" type="time" step={1800} />
                     </Field.Root>
                   </Flex>
                   <Field.Root>
