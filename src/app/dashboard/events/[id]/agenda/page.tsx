@@ -15,20 +15,16 @@ import {
   Text,
 } from "@chakra-ui/react";
 
-import {
-  addTimeSlot,
-  addTrack,
-  deleteTimeSlot,
-  deleteTrack,
-} from "@/app/actions/agenda";
+import { addBlock, addTrack, deleteBlock, deleteTrack, setDailyHours } from "@/app/actions/agenda";
 import { toggleAgendaPublished } from "@/app/actions/events";
+import { eventDays } from "@/lib/agenda";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatDay,
   formatTime,
   type AgendaAssignment,
+  type AgendaBlock,
   type Proposal,
-  type TimeSlot,
   type Track,
   type UnconfEvent,
 } from "@/lib/types";
@@ -54,64 +50,38 @@ export default async function AgendaBuilderPage({
     .single<UnconfEvent>();
   if (!event) notFound();
 
-  const [
-    { data: slots },
-    { data: tracks },
-    { data: proposals },
-    { data: assignments },
-    { data: votes },
-  ] = await Promise.all([
-    supabase
-      .from("time_slots")
-      .select("*")
-      .eq("event_id", id)
-      .order("day")
-      .order("start_time"),
-    supabase.from("tracks").select("*").eq("event_id", id).order("position"),
-    supabase
-      .from("proposals")
-      .select("*")
-      .eq("event_id", id)
-      .eq("hidden", false),
-    supabase.from("agenda_assignments").select("*").eq("event_id", id),
-    supabase.from("votes").select("proposal_id").eq("event_id", id),
-  ]);
+  const [{ data: tracks }, { data: proposals }, { data: assignments }, { data: blocks }, { data: votes }] =
+    await Promise.all([
+      supabase.from("tracks").select("*").eq("event_id", id).order("position"),
+      supabase.from("proposals").select("*").eq("event_id", id).eq("hidden", false),
+      supabase.from("agenda_assignments").select("*").eq("event_id", id),
+      supabase.from("agenda_blocks").select("*").eq("event_id", id).order("day").order("start_time"),
+      supabase.from("votes").select("proposal_id").eq("event_id", id),
+    ]);
 
   const voteCounts: Record<string, number> = {};
   for (const v of votes ?? []) {
     voteCounts[v.proposal_id] = (voteCounts[v.proposal_id] ?? 0) + 1;
   }
 
+  const days = eventDays(event.start_date, event.end_date);
+  const allBlocks = (blocks ?? []) as AgendaBlock[];
+
   return (
     <Container maxW="6xl" py={10}>
       <Stack gap={8}>
         <Stack gap={2}>
           <Link asChild color="teal.600" fontSize="sm">
-            <NextLink href={`/dashboard/events/${event.id}`}>
-              ← {event.name}
-            </NextLink>
+            <NextLink href={`/dashboard/events/${event.id}`}>← {event.name}</NextLink>
           </Link>
           <Flex justify="space-between" align="center" gap={4} wrap="wrap">
             <Heading size="xl">Agenda builder</Heading>
             <Flex gap={3} align="center">
-              <Badge
-                colorPalette={event.agenda_published ? "green" : "gray"}
-                size="lg"
-              >
+              <Badge colorPalette={event.agenda_published ? "green" : "gray"} size="lg">
                 {event.agenda_published ? "Visible to attendees" : "Hidden from attendees"}
               </Badge>
-              <form
-                action={toggleAgendaPublished.bind(
-                  null,
-                  event.id,
-                  !event.agenda_published,
-                )}
-              >
-                <Button
-                  type="submit"
-                  size="sm"
-                  colorPalette={event.agenda_published ? "gray" : "green"}
-                >
+              <form action={toggleAgendaPublished.bind(null, event.id, !event.agenda_published)}>
+                <Button type="submit" size="sm" colorPalette={event.agenda_published ? "gray" : "green"}>
                   {event.agenda_published ? "Unpublish agenda" : "Publish agenda"}
                 </Button>
               </form>
@@ -121,11 +91,11 @@ export default async function AgendaBuilderPage({
 
         <Box borderWidth="1px" borderRadius="lg" p={6}>
           <AgendaGrid
-            eventId={event.id}
-            slots={(slots ?? []) as TimeSlot[]}
+            event={event}
             tracks={(tracks ?? []) as Track[]}
             proposals={(proposals ?? []) as Proposal[]}
             assignments={(assignments ?? []) as AgendaAssignment[]}
+            blocks={allBlocks}
             voteCounts={voteCounts}
           />
         </Box>
@@ -133,50 +103,62 @@ export default async function AgendaBuilderPage({
         <Flex gap={6} direction={{ base: "column", md: "row" }}>
           <Box borderWidth="1px" borderRadius="lg" p={6} flex="1">
             <Stack gap={4}>
-              <Heading size="md">Time slots</Heading>
+              <Heading size="md">Daily hours</Heading>
+              <Text color="fg.muted" fontSize="sm">
+                The grid runs these hours in 30-minute rows on every event day.
+              </Text>
+              <form action={setDailyHours.bind(null, event.id)}>
+                <Flex gap={3} align="flex-end" wrap="wrap">
+                  <Field.Root required>
+                    <Field.Label>Start</Field.Label>
+                    <Input name="agenda_day_start" type="time" step={1800} defaultValue={event.agenda_day_start.slice(0, 5)} />
+                  </Field.Root>
+                  <Field.Root required>
+                    <Field.Label>End</Field.Label>
+                    <Input name="agenda_day_end" type="time" step={1800} defaultValue={event.agenda_day_end.slice(0, 5)} />
+                  </Field.Root>
+                  <Button type="submit" size="sm">Save hours</Button>
+                </Flex>
+              </form>
+
+              <Heading size="md" pt={2}>Blocks</Heading>
+              <Text color="fg.muted" fontSize="sm">
+                Reserve a span across all rooms — e.g. lunch or an all-hands session.
+              </Text>
               <Stack gap={2}>
-                {((slots ?? []) as TimeSlot[]).map((slot) => (
-                  <Flex key={slot.id} justify="space-between" align="center">
+                {allBlocks.map((b) => (
+                  <Flex key={b.id} justify="space-between" align="center">
                     <Text fontSize="sm">
-                      {formatDay(slot.day)} · {formatTime(slot.start_time)}–
-                      {formatTime(slot.end_time)}
-                      {slot.label ? ` · ${slot.label}` : ""}
+                      {formatDay(b.day)} · {formatTime(b.start_time)}–{formatTime(b.end_time)}
+                      {b.label ? ` · ${b.label}` : ""}
                     </Text>
-                    <form action={deleteTimeSlot.bind(null, event.id, slot.id)}>
-                      <Button type="submit" size="2xs" variant="ghost" colorPalette="red">
-                        Remove
-                      </Button>
+                    <form action={deleteBlock.bind(null, event.id, b.id)}>
+                      <Button type="submit" size="2xs" variant="ghost" colorPalette="red">Remove</Button>
                     </form>
                   </Flex>
                 ))}
               </Stack>
-              <form action={addTimeSlot.bind(null, event.id)}>
+              <form action={addBlock.bind(null, event.id)}>
                 <Stack gap={3}>
                   <Field.Root required>
                     <Field.Label>Day</Field.Label>
-                    <Input
-                      name="day"
-                      type="date"
-                      defaultValue={event.start_date ?? ""}
-                    />
+                    <Input name="day" type="date" defaultValue={days[0] ?? event.start_date ?? ""} />
                   </Field.Root>
                   <Flex gap={3}>
                     <Field.Root required>
                       <Field.Label>Start</Field.Label>
-                      <Input name="start_time" type="time" />
+                      <Input name="start_time" type="time" step={1800} />
                     </Field.Root>
                     <Field.Root required>
                       <Field.Label>End</Field.Label>
-                      <Input name="end_time" type="time" />
+                      <Input name="end_time" type="time" step={1800} />
                     </Field.Root>
                   </Flex>
                   <Field.Root>
-                    <Field.Label>Label (optional)</Field.Label>
-                    <Input name="label" placeholder="e.g. Morning block" />
+                    <Field.Label>Label</Field.Label>
+                    <Input name="label" placeholder="e.g. Lunch, All-hands" />
                   </Field.Root>
-                  <Button type="submit" size="sm" alignSelf="flex-start">
-                    Add slot
-                  </Button>
+                  <Button type="submit" size="sm" alignSelf="flex-start">Add block</Button>
                 </Stack>
               </form>
             </Stack>
@@ -190,9 +172,7 @@ export default async function AgendaBuilderPage({
                   <Flex key={track.id} justify="space-between" align="center">
                     <Text fontSize="sm">{track.name}</Text>
                     <form action={deleteTrack.bind(null, event.id, track.id)}>
-                      <Button type="submit" size="2xs" variant="ghost" colorPalette="red">
-                        Remove
-                      </Button>
+                      <Button type="submit" size="2xs" variant="ghost" colorPalette="red">Remove</Button>
                     </form>
                   </Flex>
                 ))}
@@ -203,9 +183,7 @@ export default async function AgendaBuilderPage({
                     <Field.Label>Name</Field.Label>
                     <Input name="name" placeholder="e.g. Main room" />
                   </Field.Root>
-                  <Button type="submit" size="sm" alignSelf="flex-start">
-                    Add room
-                  </Button>
+                  <Button type="submit" size="sm" alignSelf="flex-start">Add room</Button>
                 </Stack>
               </form>
             </Stack>

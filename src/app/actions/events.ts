@@ -123,6 +123,7 @@ export async function createProposal(eventId: string, formData: FormData) {
   if (error) return;
 
   revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}/proposals`);
 }
 
 export async function setProposalHidden(
@@ -133,10 +134,12 @@ export async function setProposalHidden(
   const { supabase } = await requireUser();
   await supabase.from("proposals").update({ hidden }).eq("id", proposalId);
   revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}/proposals`);
 }
 
 export async function deleteProposal(eventId: string, proposalId: string) {
   const { supabase } = await requireUser();
   await supabase.from("proposals").delete().eq("id", proposalId);
   revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}/proposals`);
 }
