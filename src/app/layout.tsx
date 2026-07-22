@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { DevFeedback } from "./DevFeedback";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
+        <DevFeedback />
       </body>
     </html>
   );

@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# riffrec session recordings
+/.feedback
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

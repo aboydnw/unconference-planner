@@ -3495,6 +3495,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fflate@npm:^0.8.2":
+  version: 0.8.3
+  resolution: "fflate@npm:0.8.3"
+  checksum: 10c0/eab181ca37f5348ae76d4b6f840e0026e30220e33153289ac942222d8b9638237d486507dbcc09878d724095bd354993a2ee48bbee99c8f2c6440d4448719aa7
+  languageName: node
+  linkType: hard
+
 "file-entry-cache@npm:^8.0.0":
   version: 8.0.0
   resolution: "file-entry-cache@npm:8.0.0"
@@ -4858,6 +4865,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"riffrec@npm:^2.1.1":
+  version: 2.1.1
+  resolution: "riffrec@npm:2.1.1"
+  dependencies:
+    fflate: "npm:^0.8.2"
+  peerDependencies:
+    react: ">=16.8.0"
+    react-dom: ">=16.8.0"
+  checksum: 10c0/03f73bc85484c64e7adaef7df6eaba701a1ad75f8326eb8aae53d1ee377b8753b024b85e7c69db8d483d19dfec345cd3f021ceba42167bdd96f5618e66ea55db
+  languageName: node
+  linkType: hard
+
 "run-parallel@npm:^1.1.9":
   version: 1.2.0
   resolution: "run-parallel@npm:1.2.0"
@@ -5449,6 +5468,7 @@ __metadata:
     next-themes: "npm:^0.4.6"
     react: "npm:19.2.4"
     react-dom: "npm:19.2.4"
+    riffrec: "npm:^2.1.1"
     typescript: "npm:^5"
   languageName: unknown
   linkType: soft
