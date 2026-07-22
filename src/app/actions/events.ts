@@ -101,6 +101,29 @@ export async function deleteEvent(eventId: string) {
   redirect("/dashboard");
 }
 
+export async function createProposal(eventId: string, formData: FormData) {
+  const { supabase } = await requireUser();
+
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return;
+
+  const durationRaw = String(formData.get("duration_minutes") ?? "");
+  const format = String(formData.get("format") ?? "").trim();
+  const proposerName = String(formData.get("proposer_name") ?? "").trim();
+
+  await supabase.from("proposals").insert({
+    event_id: eventId,
+    attendee_id: null,
+    proposer_name: proposerName || "Organizer",
+    title,
+    description: String(formData.get("description") ?? "").trim(),
+    format: format || null,
+    duration_minutes: durationRaw ? parseInt(durationRaw, 10) : null,
+  });
+  revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}/proposals`);
+}
+
 export async function setProposalHidden(
   eventId: string,
   proposalId: string,
@@ -109,10 +132,12 @@ export async function setProposalHidden(
   const { supabase } = await requireUser();
   await supabase.from("proposals").update({ hidden }).eq("id", proposalId);
   revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}/proposals`);
 }
 
 export async function deleteProposal(eventId: string, proposalId: string) {
   const { supabase } = await requireUser();
   await supabase.from("proposals").delete().eq("id", proposalId);
   revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}/proposals`);
 }

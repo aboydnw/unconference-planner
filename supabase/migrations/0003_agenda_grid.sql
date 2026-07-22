@@ -31,3 +31,7 @@ create policy agenda_blocks_owner_delete on public.agenda_blocks for delete to a
   using (exists (select 1 from public.events e where e.id = event_id and e.owner_id = auth.uid()));
 
 drop table public.time_slots cascade;
+
+-- Allow event owners to add sessions directly (organizer-authored proposals).
+create policy proposals_owner_insert on public.proposals for insert to authenticated
+  with check (exists (select 1 from public.events e where e.id = event_id and e.owner_id = auth.uid()));
