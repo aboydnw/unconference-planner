@@ -1,5 +1,7 @@
 import type { AgendaAssignment, AgendaBlock, Proposal, Track } from "@/lib/types";
 
+export { formatDay as formatDayLabel } from "@/lib/types";
+
 export const SLOT_MINUTES = 30;
 
 export function timeToMinutes(t: string): number {
