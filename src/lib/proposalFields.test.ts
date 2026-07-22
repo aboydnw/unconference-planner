@@ -37,6 +37,14 @@ describe("buildCustomAnswers", () => {
     const read = (id: string) => ({ a: " hi ", b: "", c: "x" })[id] ?? "";
     expect(buildCustomAnswers(fields, read)).toEqual({ a: "hi", c: "x" });
   });
+
+  it("drops select answers that are not among the field's options", () => {
+    const fields = [
+      field({ id: "s", field_type: "select", options: ["Beginner", "Advanced"] }),
+    ];
+    expect(buildCustomAnswers(fields, () => "Expert")).toEqual({});
+    expect(buildCustomAnswers(fields, () => "Advanced")).toEqual({ s: "Advanced" });
+  });
 });
 
 describe("missingRequired", () => {

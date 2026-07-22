@@ -14,7 +14,9 @@ export function buildCustomAnswers(
   const out: Record<string, string> = {};
   for (const f of fields) {
     const v = read(f.id).trim();
-    if (v) out[f.id] = v;
+    if (!v) continue;
+    if (f.field_type === "select" && !f.options.includes(v)) continue;
+    out[f.id] = v;
   }
   return out;
 }

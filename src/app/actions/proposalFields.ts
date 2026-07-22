@@ -32,6 +32,10 @@ export async function addProposalField(eventId: string, formData: FormData) {
   const label = String(formData.get("label") ?? "").trim();
   if (!label) return;
 
+  const fieldType = readType(formData);
+  const options = parseFieldOptions(String(formData.get("options") ?? ""));
+  if (fieldType === "select" && options.length === 0) return;
+
   const { data: existing } = await supabase
     .from("proposal_fields")
     .select("position")
@@ -40,14 +44,15 @@ export async function addProposalField(eventId: string, formData: FormData) {
     .limit(1);
   const position = existing && existing.length > 0 ? existing[0].position + 1 : 0;
 
-  await supabase.from("proposal_fields").insert({
+  const { error } = await supabase.from("proposal_fields").insert({
     event_id: eventId,
     label,
-    field_type: readType(formData),
-    options: parseFieldOptions(String(formData.get("options") ?? "")),
+    field_type: fieldType,
+    options,
     required: formData.get("required") === "on",
     position,
   });
+  if (error) return;
   revalidatePath(formPath(eventId));
 }
 
@@ -60,21 +65,30 @@ export async function updateProposalField(
   const label = String(formData.get("label") ?? "").trim();
   if (!label) return;
 
-  await supabase
+  const fieldType = readType(formData);
+  const options = parseFieldOptions(String(formData.get("options") ?? ""));
+  if (fieldType === "select" && options.length === 0) return;
+
+  const { error } = await supabase
     .from("proposal_fields")
     .update({
       label,
-      field_type: readType(formData),
-      options: parseFieldOptions(String(formData.get("options") ?? "")),
+      field_type: fieldType,
+      options,
       required: formData.get("required") === "on",
     })
     .eq("id", fieldId);
+  if (error) return;
   revalidatePath(formPath(eventId));
 }
 
 export async function deleteProposalField(eventId: string, fieldId: string) {
   const supabase = await requireUser();
-  await supabase.from("proposal_fields").delete().eq("id", fieldId);
+  const { error } = await supabase
+    .from("proposal_fields")
+    .delete()
+    .eq("id", fieldId);
+  if (error) return;
   revalidatePath(formPath(eventId));
 }
 
@@ -97,7 +111,15 @@ export async function moveProposalField(
 
   const a = fields[idx];
   const b = fields[swapIdx];
-  await supabase.from("proposal_fields").update({ position: b.position }).eq("id", a.id);
-  await supabase.from("proposal_fields").update({ position: a.position }).eq("id", b.id);
+  const { error: errA } = await supabase
+    .from("proposal_fields")
+    .update({ position: b.position })
+    .eq("id", a.id);
+  if (errA) return;
+  const { error: errB } = await supabase
+    .from("proposal_fields")
+    .update({ position: a.position })
+    .eq("id", b.id);
+  if (errB) return;
   revalidatePath(formPath(eventId));
 }
