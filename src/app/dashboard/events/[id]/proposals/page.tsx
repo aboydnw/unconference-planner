@@ -11,16 +11,15 @@ import {
   Heading,
   Input,
   Link,
-  NativeSelect,
   Stack,
   Table,
   Text,
-  Textarea,
 } from "@chakra-ui/react";
 
+import { ProposalFields } from "@/app/e/[code]/ProposalFields";
 import { createProposal, deleteProposal, setProposalHidden } from "@/app/actions/events";
 import { createClient } from "@/lib/supabase/server";
-import { type Proposal, type UnconfEvent } from "@/lib/types";
+import { type Proposal, type ProposalField, type UnconfEvent } from "@/lib/types";
 
 export default async function EventProposalsPage({
   params,
@@ -41,10 +40,13 @@ export default async function EventProposalsPage({
     .single<UnconfEvent>();
   if (!event) notFound();
 
-  const [{ data: proposals }, { data: votes }] = await Promise.all([
-    supabase.from("proposals").select("*").eq("event_id", id).order("created_at", { ascending: true }),
-    supabase.from("votes").select("proposal_id").eq("event_id", id),
-  ]);
+  const [{ data: proposals }, { data: votes }, { data: fieldRows }] =
+    await Promise.all([
+      supabase.from("proposals").select("*").eq("event_id", id).order("created_at", { ascending: true }),
+      supabase.from("votes").select("proposal_id").eq("event_id", id),
+      supabase.from("proposal_fields").select("*").eq("event_id", id).order("position"),
+    ]);
+  const fields = (fieldRows ?? []) as ProposalField[];
 
   const voteCounts = new Map<string, number>();
   for (const v of votes ?? []) {
@@ -61,7 +63,14 @@ export default async function EventProposalsPage({
           <Link asChild color="teal.600" fontSize="sm">
             <NextLink href={`/dashboard/events/${event.id}`}>← {event.name}</NextLink>
           </Link>
-          <Heading size="xl">Proposals ({sortedProposals.length})</Heading>
+          <Flex justify="space-between" align="center" gap={4} wrap="wrap">
+            <Heading size="xl">Proposals ({sortedProposals.length})</Heading>
+            <Link asChild color="teal.600" fontWeight="medium">
+              <NextLink href={`/dashboard/events/${event.id}/proposals/form`}>
+                Manage form fields →
+              </NextLink>
+            </Link>
+          </Flex>
         </Stack>
 
         <Box borderWidth="1px" borderRadius="lg" p={6}>
@@ -131,45 +140,11 @@ export default async function EventProposalsPage({
                     Add a session yourself — useful for ideas that come up in conversation before
                     attendees submit them.
                   </Text>
-                  <Flex gap={4} wrap="wrap">
-                    <Field.Root required flex="1" minW="240px">
-                      <Field.Label>Title</Field.Label>
-                      <Input name="title" placeholder="e.g. Field data QA" />
-                    </Field.Root>
-                    <Field.Root flex="1" minW="160px">
-                      <Field.Label>Proposed by</Field.Label>
-                      <Input name="proposer_name" placeholder="Organizer" />
-                    </Field.Root>
-                  </Flex>
+                  <ProposalFields fields={fields} />
                   <Field.Root>
-                    <Field.Label>Description</Field.Label>
-                    <Textarea name="description" rows={2} placeholder="What will this session cover?" />
+                    <Field.Label>Proposed by</Field.Label>
+                    <Input name="proposer_name" placeholder="Organizer" />
                   </Field.Root>
-                  <Flex gap={4} wrap="wrap">
-                    <Field.Root>
-                      <Field.Label>Format</Field.Label>
-                      <NativeSelect.Root>
-                        <NativeSelect.Field name="format">
-                          <option value="">Any</option>
-                          <option value="talk">Talk</option>
-                          <option value="discussion">Discussion</option>
-                          <option value="workshop">Workshop</option>
-                          <option value="hands-on">Hands-on</option>
-                        </NativeSelect.Field>
-                      </NativeSelect.Root>
-                    </Field.Root>
-                    <Field.Root>
-                      <Field.Label>Duration</Field.Label>
-                      <NativeSelect.Root>
-                        <NativeSelect.Field name="duration_minutes">
-                          <option value="">Flexible</option>
-                          <option value="30">30 min</option>
-                          <option value="60">60 min</option>
-                          <option value="90">90 min</option>
-                        </NativeSelect.Field>
-                      </NativeSelect.Root>
-                    </Field.Root>
-                  </Flex>
                   <Button type="submit" size="sm" colorPalette="teal" alignSelf="flex-start">
                     Add session
                   </Button>
