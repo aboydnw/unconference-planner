@@ -107,19 +107,20 @@ export async function createProposal(eventId: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
 
+  const proposerName =
+    String(formData.get("proposer_name") ?? "").trim() || "Organizer";
   const durationRaw = String(formData.get("duration_minutes") ?? "");
-  const format = String(formData.get("format") ?? "").trim();
-  const proposerName = String(formData.get("proposer_name") ?? "").trim();
 
   await supabase.from("proposals").insert({
     event_id: eventId,
     attendee_id: null,
-    proposer_name: proposerName || "Organizer",
+    proposer_name: proposerName,
     title,
     description: String(formData.get("description") ?? "").trim(),
-    format: format || null,
+    format: String(formData.get("format") ?? "").trim() || null,
     duration_minutes: durationRaw ? parseInt(durationRaw, 10) : null,
   });
+
   revalidatePath(`/dashboard/events/${eventId}`);
   revalidatePath(`/dashboard/events/${eventId}/proposals`);
 }

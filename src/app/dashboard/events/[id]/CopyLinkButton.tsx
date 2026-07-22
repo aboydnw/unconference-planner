@@ -9,14 +9,18 @@ export function CopyLinkButton({ path }: { path: string }) {
 
   async function copy() {
     const url = `${window.location.origin}${path}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   }
 
   return (
-    <Button size="sm" variant="outline" onClick={copy}>
-      {copied ? "Copied!" : "Copy attendee link"}
+    <Button size="xs" variant="outline" onClick={copy}>
+      {copied ? "Copied!" : "Copy share link"}
     </Button>
   );
 }
