@@ -11,6 +11,7 @@ import {
   Heading,
   Input,
   Link,
+  NativeSelect,
   Stack,
   Table,
   Text,
@@ -18,11 +19,13 @@ import {
 } from "@chakra-ui/react";
 
 import {
+  createProposal,
   deleteProposal,
   setEventStatus,
   setProposalHidden,
   updateEvent,
 } from "@/app/actions/events";
+import { CopyLinkButton } from "./CopyLinkButton";
 import { createClient } from "@/lib/supabase/server";
 import {
   STATUS_DESCRIPTIONS,
@@ -97,15 +100,18 @@ export default async function EventAdminPage({
               {STATUS_LABELS[event.status]}
             </Badge>
           </Flex>
-          <Text color="fg.muted">
-            Event code:{" "}
-            <Text as="span" fontFamily="mono" fontWeight="bold" fontSize="lg">
-              {event.code}
+          <Flex align="center" gap={3} wrap="wrap">
+            <Text color="fg.muted">
+              Event code:{" "}
+              <Text as="span" fontFamily="mono" fontWeight="bold" fontSize="lg">
+                {event.code}
+              </Text>
+              {" · "}
+              {attendeeCount ?? 0} attendee
+              {(attendeeCount ?? 0) === 1 ? "" : "s"} joined
             </Text>
-            {" · "}Share link: <Text as="span" fontFamily="mono">/e/{event.code}</Text>
-            {" · "}
-            {attendeeCount ?? 0} attendee{(attendeeCount ?? 0) === 1 ? "" : "s"} joined
-          </Text>
+            <CopyLinkButton path={`/e/${event.code}`} />
+          </Flex>
         </Stack>
 
         <Box borderWidth="1px" borderRadius="lg" p={6}>
@@ -217,6 +223,69 @@ export default async function EventAdminPage({
                 </Table.Body>
               </Table.Root>
             )}
+
+            <Box borderTopWidth="1px" pt={5}>
+              <form action={createProposal.bind(null, event.id)}>
+                <Stack gap={4}>
+                  <Heading size="sm">Add a session</Heading>
+                  <Text color="fg.muted" fontSize="sm">
+                    Add a session yourself — useful for ideas that come up in
+                    conversation before attendees submit them.
+                  </Text>
+                  <Flex gap={4} wrap="wrap">
+                    <Field.Root required flex="1" minW="240px">
+                      <Field.Label>Title</Field.Label>
+                      <Input name="title" placeholder="e.g. Field data QA" />
+                    </Field.Root>
+                    <Field.Root flex="1" minW="160px">
+                      <Field.Label>Proposed by</Field.Label>
+                      <Input name="proposer_name" placeholder="Organizer" />
+                    </Field.Root>
+                  </Flex>
+                  <Field.Root>
+                    <Field.Label>Description</Field.Label>
+                    <Textarea
+                      name="description"
+                      rows={2}
+                      placeholder="What will this session cover?"
+                    />
+                  </Field.Root>
+                  <Flex gap={4} wrap="wrap">
+                    <Field.Root>
+                      <Field.Label>Format</Field.Label>
+                      <NativeSelect.Root>
+                        <NativeSelect.Field name="format">
+                          <option value="">Any</option>
+                          <option value="talk">Talk</option>
+                          <option value="discussion">Discussion</option>
+                          <option value="workshop">Workshop</option>
+                          <option value="hands-on">Hands-on</option>
+                        </NativeSelect.Field>
+                      </NativeSelect.Root>
+                    </Field.Root>
+                    <Field.Root>
+                      <Field.Label>Duration</Field.Label>
+                      <NativeSelect.Root>
+                        <NativeSelect.Field name="duration_minutes">
+                          <option value="">Flexible</option>
+                          <option value="30">30 min</option>
+                          <option value="60">60 min</option>
+                          <option value="90">90 min</option>
+                        </NativeSelect.Field>
+                      </NativeSelect.Root>
+                    </Field.Root>
+                  </Flex>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    colorPalette="teal"
+                    alignSelf="flex-start"
+                  >
+                    Add session
+                  </Button>
+                </Stack>
+              </form>
+            </Box>
           </Stack>
         </Box>
 
