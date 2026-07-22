@@ -5,9 +5,28 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { attendeeCookieName, getCurrentAttendee, getEventByCode } from "@/lib/attendee";
+import { buildCustomAnswers, missingRequired } from "@/lib/proposalFields";
 import { createClient } from "@/lib/supabase/server";
+import type { ProposalField } from "@/lib/types";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+async function collectAnswers(
+  eventId: string,
+  formData: FormData,
+): Promise<{ answers: Record<string, string>; missing: string[] }> {
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("proposal_fields")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("position");
+  const fields = (rows ?? []) as ProposalField[];
+  const answers = buildCustomAnswers(fields, (fieldId) =>
+    String(formData.get(`custom_${fieldId}`) ?? ""),
+  );
+  return { answers, missing: missingRequired(fields, answers) };
+}
 
 export async function findEvent(formData: FormData) {
   const code = String(formData.get("code") ?? "").trim();
@@ -56,9 +75,15 @@ export async function submitProposal(code: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) redirect(`${path}?error=Session+title+is+required`);
 
+  const event = await getEventByCode(code);
+  if (!event) redirect("/?error=Event+not+found");
   const token = await requireAttendeeToken(code);
-  const durationRaw = String(formData.get("duration_minutes") ?? "");
+  const { answers, missing } = await collectAnswers(event.id, formData);
+  if (missing.length) {
+    redirect(`${path}?error=${encodeURIComponent(`Please fill in: ${missing.join(", ")}`)}`);
+  }
 
+  const durationRaw = String(formData.get("duration_minutes") ?? "");
   const supabase = await createClient();
   const { error } = await supabase.rpc("submit_proposal", {
     p_token: token,
@@ -66,9 +91,45 @@ export async function submitProposal(code: string, formData: FormData) {
     p_description: String(formData.get("description") ?? "").trim(),
     p_format: String(formData.get("format") ?? ""),
     p_duration: durationRaw ? parseInt(durationRaw, 10) : null,
+    p_custom: answers,
   });
   if (error) {
     redirect(`${path}?error=${encodeURIComponent("Could not submit proposal")}`);
+  }
+  revalidatePath(path);
+  redirect(path);
+}
+
+export async function updateOwnProposal(
+  code: string,
+  proposalId: string,
+  formData: FormData,
+) {
+  const path = `/e/${encodeURIComponent(code)}`;
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) redirect(`${path}?error=Session+title+is+required`);
+
+  const event = await getEventByCode(code);
+  if (!event) redirect("/?error=Event+not+found");
+  const token = await requireAttendeeToken(code);
+  const { answers, missing } = await collectAnswers(event.id, formData);
+  if (missing.length) {
+    redirect(`${path}?error=${encodeURIComponent(`Please fill in: ${missing.join(", ")}`)}`);
+  }
+
+  const durationRaw = String(formData.get("duration_minutes") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_own_proposal", {
+    p_token: token,
+    p_proposal: proposalId,
+    p_title: title,
+    p_description: String(formData.get("description") ?? "").trim(),
+    p_format: String(formData.get("format") ?? ""),
+    p_duration: durationRaw ? parseInt(durationRaw, 10) : null,
+    p_custom: answers,
+  });
+  if (error) {
+    redirect(`${path}?error=${encodeURIComponent("Could not update proposal")}`);
   }
   revalidatePath(path);
   redirect(path);

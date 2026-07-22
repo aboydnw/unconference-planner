@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { buildCustomAnswers } from "@/lib/proposalFields";
 import { createClient } from "@/lib/supabase/server";
-import type { EventStatus } from "@/lib/types";
+import type { EventStatus, ProposalField } from "@/lib/types";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
@@ -111,6 +112,16 @@ export async function createProposal(eventId: string, formData: FormData) {
     String(formData.get("proposer_name") ?? "").trim() || "Organizer";
   const durationRaw = String(formData.get("duration_minutes") ?? "");
 
+  const { data: fieldRows } = await supabase
+    .from("proposal_fields")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("position");
+  const customAnswers = buildCustomAnswers(
+    (fieldRows ?? []) as ProposalField[],
+    (fieldId) => String(formData.get(`custom_${fieldId}`) ?? ""),
+  );
+
   const { error } = await supabase.from("proposals").insert({
     event_id: eventId,
     attendee_id: null,
@@ -119,6 +130,7 @@ export async function createProposal(eventId: string, formData: FormData) {
     description: String(formData.get("description") ?? "").trim(),
     format: String(formData.get("format") ?? "").trim() || null,
     duration_minutes: durationRaw ? parseInt(durationRaw, 10) : null,
+    custom_answers: customAnswers,
   });
   if (error) return;
 
