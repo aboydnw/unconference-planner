@@ -83,7 +83,13 @@ export default async function ProposalFormSettingsPage({
                   <Text fontWeight="medium">{TYPE_LABELS[f.field_type]}</Text>
                   <Flex gap={1}>
                     <form action={moveProposalField.bind(null, id, f.id, "up")}>
-                      <Button type="submit" size="2xs" variant="ghost" disabled={i === 0}>
+                      <Button
+                        type="submit"
+                        size="2xs"
+                        variant="ghost"
+                        aria-label="Move field up"
+                        disabled={i === 0}
+                      >
                         ↑
                       </Button>
                     </form>
@@ -92,6 +98,7 @@ export default async function ProposalFormSettingsPage({
                         type="submit"
                         size="2xs"
                         variant="ghost"
+                        aria-label="Move field down"
                         disabled={i === fields.length - 1}
                       >
                         ↓

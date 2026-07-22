@@ -23,6 +23,7 @@ export function ProposalFields({
         <Field.Label>Title</Field.Label>
         <Input
           name="title"
+          required
           defaultValue={values?.title ?? ""}
           placeholder="e.g. Mapping pipeline show &amp; tell"
         />
@@ -71,7 +72,7 @@ export function ProposalFields({
           <Field.Root key={f.id} required={f.required}>
             <Field.Label>{f.label}</Field.Label>
             {f.field_type === "longtext" ? (
-              <Textarea name={name} rows={2} defaultValue={val} />
+              <Textarea name={name} rows={2} required={f.required} defaultValue={val} />
             ) : f.field_type === "select" ? (
               <NativeSelect.Root>
                 <NativeSelect.Field name={name} defaultValue={val}>
@@ -84,7 +85,7 @@ export function ProposalFields({
                 </NativeSelect.Field>
               </NativeSelect.Root>
             ) : (
-              <Input name={name} defaultValue={val} />
+              <Input name={name} required={f.required} defaultValue={val} />
             )}
           </Field.Root>
         );
