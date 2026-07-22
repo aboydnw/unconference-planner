@@ -143,9 +143,7 @@ export async function addBlock(eventId: string, formData: FormData) {
     ctx.assignments,
     ctx.proposalDurations,
   );
-  if (conflicts) {
-    return { error: "Clear the sessions in that time range first." };
-  }
+  if (conflicts) return;
 
   await ctx.supabase.from("agenda_blocks").insert({
     event_id: eventId,
