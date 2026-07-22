@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.36.1",
@@ -25,6 +26,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "riffrec": "^2.1.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^5",
+    "vitest": "^3"
   }
 }
