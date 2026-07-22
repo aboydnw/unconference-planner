@@ -49,6 +49,19 @@ export interface Proposal {
   duration_minutes: number | null;
   hidden: boolean;
   created_at: string;
+  custom_answers: Record<string, string>;
+}
+
+export type ProposalFieldType = "text" | "longtext" | "select";
+
+export interface ProposalField {
+  id: string;
+  event_id: string;
+  label: string;
+  field_type: ProposalFieldType;
+  options: string[];
+  required: boolean;
+  position: number;
 }
 
 export interface Vote {
