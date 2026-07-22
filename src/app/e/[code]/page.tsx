@@ -12,10 +12,8 @@ import {
   Heading,
   Input,
   Link,
-  NativeSelect,
   Stack,
   Text,
-  Textarea,
 } from "@chakra-ui/react";
 
 import {
@@ -30,8 +28,12 @@ import {
   STATUS_LABELS,
   formatDateRange,
   type Proposal,
+  type ProposalField,
   type Vote,
 } from "@/lib/types";
+
+import { EditableProposal } from "./EditableProposal";
+import { ProposalFields } from "./ProposalFields";
 
 export default async function AttendeeEventPage({
   params,
@@ -49,17 +51,24 @@ export default async function AttendeeEventPage({
   const current = await getCurrentAttendee(event.id);
 
   const supabase = await createClient();
-  const [{ data: proposals }, { data: votes }] = await Promise.all([
-    supabase
-      .from("proposals")
-      .select("*")
-      .eq("event_id", event.id)
-      .eq("hidden", false),
-    supabase
-      .from("votes")
-      .select("proposal_id, attendee_id")
-      .eq("event_id", event.id),
-  ]);
+  const [{ data: proposals }, { data: votes }, { data: fieldRows }] =
+    await Promise.all([
+      supabase
+        .from("proposals")
+        .select("*")
+        .eq("event_id", event.id)
+        .eq("hidden", false),
+      supabase
+        .from("votes")
+        .select("proposal_id, attendee_id")
+        .eq("event_id", event.id),
+      supabase
+        .from("proposal_fields")
+        .select("*")
+        .eq("event_id", event.id)
+        .order("position"),
+    ]);
+  const fields = (fieldRows ?? []) as ProposalField[];
 
   const voteCounts = new Map<string, number>();
   const myVotes = new Set<string>();
@@ -159,46 +168,7 @@ export default async function AttendeeEventPage({
             <form action={submitProposal.bind(null, code)}>
               <Stack gap={4}>
                 <Heading size="md">Propose a session</Heading>
-                <Field.Root required>
-                  <Field.Label>Title</Field.Label>
-                  <Input
-                    name="title"
-                    placeholder="e.g. Mapping pipeline show &amp; tell"
-                  />
-                </Field.Root>
-                <Field.Root>
-                  <Field.Label>Description</Field.Label>
-                  <Textarea
-                    name="description"
-                    rows={3}
-                    placeholder="What will you cover? What do you want from the group?"
-                  />
-                </Field.Root>
-                <Flex gap={4}>
-                  <Field.Root>
-                    <Field.Label>Format</Field.Label>
-                    <NativeSelect.Root>
-                      <NativeSelect.Field name="format">
-                        <option value="">Any</option>
-                        <option value="talk">Talk</option>
-                        <option value="discussion">Discussion</option>
-                        <option value="workshop">Workshop</option>
-                        <option value="hands-on">Hands-on</option>
-                      </NativeSelect.Field>
-                    </NativeSelect.Root>
-                  </Field.Root>
-                  <Field.Root>
-                    <Field.Label>Duration</Field.Label>
-                    <NativeSelect.Root>
-                      <NativeSelect.Field name="duration_minutes">
-                        <option value="">Flexible</option>
-                        <option value="30">30 min</option>
-                        <option value="60">60 min</option>
-                        <option value="90">90 min</option>
-                      </NativeSelect.Field>
-                    </NativeSelect.Root>
-                  </Field.Root>
-                </Flex>
+                <ProposalFields fields={fields} />
                 <Button type="submit" colorPalette="teal" alignSelf="flex-start">
                   Submit proposal
                 </Button>
@@ -258,16 +228,30 @@ export default async function AttendeeEventPage({
                       </Badge>
                     )}
                     {isMine && canPropose && (
-                      <form action={deleteOwnProposal.bind(null, code, p.id)}>
-                        <Button
-                          type="submit"
-                          size="2xs"
-                          variant="ghost"
-                          colorPalette="red"
-                        >
-                          Delete mine
-                        </Button>
-                      </form>
+                      <Stack gap={1} align="flex-end">
+                        <EditableProposal
+                          code={code}
+                          proposalId={p.id}
+                          fields={fields}
+                          values={{
+                            title: p.title,
+                            description: p.description,
+                            format: p.format,
+                            duration_minutes: p.duration_minutes,
+                            custom_answers: p.custom_answers,
+                          }}
+                        />
+                        <form action={deleteOwnProposal.bind(null, code, p.id)}>
+                          <Button
+                            type="submit"
+                            size="2xs"
+                            variant="ghost"
+                            colorPalette="red"
+                          >
+                            Delete mine
+                          </Button>
+                        </form>
+                      </Stack>
                     )}
                   </Stack>
                 </Flex>
