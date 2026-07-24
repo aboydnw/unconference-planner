@@ -33,6 +33,9 @@ export interface PublicEvent {
   end_date: string | null;
   status: EventStatus;
   agenda_published: boolean;
+  agenda_day_start: string;
+  agenda_day_end: string;
+  grid_version: number;
 }
 
 export interface Attendee {
@@ -60,6 +63,7 @@ export interface Proposal {
   format: string | null;
   duration_minutes: number | null;
   hidden: boolean;
+  pitched_in_review: boolean;
   created_at: string;
   custom_answers: Record<string, string>;
 }
@@ -108,6 +112,38 @@ export interface AgendaBlock {
   start_time: string;
   end_time: string;
   label: string;
+}
+
+export type ChangeRequestKind = "move" | "swap" | "add";
+
+export type ChangeRequestStatus =
+  | "open"
+  | "applied"
+  | "declined"
+  | "invalidated"
+  | "expired";
+
+export interface ChangeRequest {
+  id: string;
+  event_id: string;
+  attendee_id: string | null;
+  author_name: string;
+  kind: ChangeRequestKind;
+  proposal_id: string;
+  other_proposal_id: string | null;
+  target_day: string | null;
+  target_start_time: string | null;
+  target_track_id: string | null;
+  rationale: string;
+  grid_version: number;
+  status: ChangeRequestStatus;
+  invalid_reason: string | null;
+  created_at: string;
+}
+
+export interface ChangeRequestReaction {
+  change_request_id: string;
+  attendee_id: string;
 }
 
 export const STATUS_LABELS: Record<EventStatus, string> = {

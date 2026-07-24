@@ -19,6 +19,7 @@ function proposal(id: string, created_at: string): Proposal {
     format: null,
     duration_minutes: null,
     hidden: false,
+    pitched_in_review: false,
     created_at,
     custom_answers: {},
   };
