@@ -135,6 +135,30 @@ describe("optimize", () => {
     expect(timesOverlap(r.placements[0], pinned, durationsOf(input))).toBe(false);
   });
 
+  it("respects the full duration of a pinned session when scheduling around it", () => {
+    const oneTrack: GridShape = { ...shape, dayEnd: "11:00", trackIds: ["t1"] };
+    const pinned: Placement = {
+      proposalId: "long",
+      trackId: "t1",
+      day: "2026-08-01",
+      startTime: "09:00",
+    };
+    const input = baseInput({
+      shape: oneTrack,
+      proposals: [
+        { id: "long", attendee_id: null, duration_minutes: 90, created_at: "2026-07-01" },
+        proposal("p2", null, "2026-07-02"),
+      ],
+      votes: [{ proposal_id: "p2", attendee_id: "v1", tier: "must" }],
+      attendeeCount: 2,
+      currentDraft: [pinned],
+      pinnedIds: new Set(["long"]),
+    });
+    const r = optimize(input);
+    expect(r.placements.map((p) => p.proposalId)).toEqual(["p2"]);
+    expect(r.placements[0].startTime).toBe("10:30");
+  });
+
   it("stays close to the baseline when one vote is added (warm start)", () => {
     const input = baseInput({
       proposals: [

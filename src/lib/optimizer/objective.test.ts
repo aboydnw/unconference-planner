@@ -63,6 +63,18 @@ describe("scorePlacements", () => {
     const outside = scorePlacements([at("p1", "t1", "10:00")], busyAlice);
     expect(outside).toBeGreaterThan(inside);
   });
+  it("discounts sessions scheduled while an interested non-proposer is away", () => {
+    const carolAway = {
+      ...base,
+      unavailability: new Map([
+        ["carol", [{ day: "2026-08-01", start_time: "09:00", end_time: "10:00" }]],
+      ]),
+    };
+    const whileAway = scorePlacements([at("p1", "t1", "09:00")], carolAway);
+    const whilePresent = scorePlacements([at("p1", "t1", "10:00")], carolAway);
+    expect(whilePresent).toBeGreaterThan(whileAway);
+  });
+
   it("charges the move penalty only for moved placements", () => {
     const baseline = new Map([["p1", at("p1", "t1", "09:00")]]);
     const same = scorePlacements([at("p1", "t1", "09:00")], { ...base, baseline });
