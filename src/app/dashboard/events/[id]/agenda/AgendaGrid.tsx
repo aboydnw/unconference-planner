@@ -14,6 +14,7 @@ import {
   timeToMinutes,
 } from "@/lib/agenda";
 import { formatTime, type AgendaAssignment, type AgendaBlock, type Proposal, type Track, type UnconfEvent } from "@/lib/types";
+import { compareByDemand, formatVoteSplit, type VoteSummary } from "@/lib/votes";
 
 interface AgendaGridProps {
   event: UnconfEvent;
@@ -21,7 +22,7 @@ interface AgendaGridProps {
   proposals: Proposal[];
   assignments: AgendaAssignment[];
   blocks: AgendaBlock[];
-  voteCounts: Record<string, number>;
+  voteSummaries: Record<string, VoteSummary>;
 }
 
 export function AgendaGrid({
@@ -30,7 +31,7 @@ export function AgendaGrid({
   proposals,
   assignments,
   blocks,
-  voteCounts,
+  voteSummaries,
 }: AgendaGridProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -44,9 +45,13 @@ export function AgendaGrid({
     [proposals],
   );
   const assignedIds = new Set(assignments.map((a) => a.proposal_id));
+  const summaryMap = useMemo(
+    () => new Map(Object.entries(voteSummaries)),
+    [voteSummaries],
+  );
   const unscheduled = proposals
     .filter((p) => !assignedIds.has(p.id))
-    .sort((a, b) => (voteCounts[b.id] ?? 0) - (voteCounts[a.id] ?? 0));
+    .sort((a, b) => compareByDemand(a, b, summaryMap));
 
   const days = eventDays(event.start_date, event.end_date);
   const rowTimes = generateRowTimes(event.agenda_day_start, event.agenda_day_end);
@@ -110,7 +115,7 @@ export function AgendaGrid({
                 >
                   {p.title}
                   <Badge ml={1} colorPalette="teal" variant="subtle">
-                    {p.duration_minutes ?? 30}m · {voteCounts[p.id] ?? 0}
+                    {p.duration_minutes ?? 30}m · {formatVoteSplit(voteSummaries[p.id])}
                   </Badge>
                 </Button>
               ))}
@@ -221,7 +226,7 @@ export function AgendaGrid({
                                     <Text fontSize="xs" color="fg.muted">
                                       {proposal.proposer_name} ·{" "}
                                       {proposal.duration_minutes ?? 30}m ·{" "}
-                                      {voteCounts[proposal.id] ?? 0} would attend
+                                      {formatVoteSplit(voteSummaries[proposal.id])}
                                     </Text>
                                     <Button
                                       size="2xs"
