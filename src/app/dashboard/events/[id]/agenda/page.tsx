@@ -27,7 +27,9 @@ import {
   type Proposal,
   type Track,
   type UnconfEvent,
+  type Vote,
 } from "@/lib/types";
+import { summarizeVotes } from "@/lib/votes";
 
 import { AgendaGrid } from "./AgendaGrid";
 
@@ -56,13 +58,12 @@ export default async function AgendaBuilderPage({
       supabase.from("proposals").select("*").eq("event_id", id).eq("hidden", false),
       supabase.from("agenda_assignments").select("*").eq("event_id", id),
       supabase.from("agenda_blocks").select("*").eq("event_id", id).order("day").order("start_time"),
-      supabase.from("votes").select("proposal_id").eq("event_id", id),
+      supabase.from("votes").select("proposal_id, tier").eq("event_id", id),
     ]);
 
-  const voteCounts: Record<string, number> = {};
-  for (const v of votes ?? []) {
-    voteCounts[v.proposal_id] = (voteCounts[v.proposal_id] ?? 0) + 1;
-  }
+  const voteSummaries = Object.fromEntries(
+    summarizeVotes((votes ?? []) as Pick<Vote, "proposal_id" | "tier">[]),
+  );
 
   const days = eventDays(event.start_date, event.end_date);
   const allBlocks = (blocks ?? []) as AgendaBlock[];
@@ -96,7 +97,7 @@ export default async function AgendaBuilderPage({
             proposals={(proposals ?? []) as Proposal[]}
             assignments={(assignments ?? []) as AgendaAssignment[]}
             blocks={allBlocks}
-            voteCounts={voteCounts}
+            voteSummaries={voteSummaries}
           />
         </Box>
 

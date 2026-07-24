@@ -19,7 +19,8 @@ import {
 import { ProposalFields } from "@/app/e/[code]/ProposalFields";
 import { createProposal, deleteProposal, setProposalHidden } from "@/app/actions/events";
 import { createClient } from "@/lib/supabase/server";
-import { type Proposal, type ProposalField, type UnconfEvent } from "@/lib/types";
+import { type Proposal, type ProposalField, type UnconfEvent, type Vote } from "@/lib/types";
+import { compareByDemand, formatVoteSplit, summarizeVotes } from "@/lib/votes";
 
 export default async function EventProposalsPage({
   params,
@@ -43,17 +44,16 @@ export default async function EventProposalsPage({
   const [{ data: proposals }, { data: votes }, { data: fieldRows }] =
     await Promise.all([
       supabase.from("proposals").select("*").eq("event_id", id).order("created_at", { ascending: true }),
-      supabase.from("votes").select("proposal_id").eq("event_id", id),
+      supabase.from("votes").select("proposal_id, tier").eq("event_id", id),
       supabase.from("proposal_fields").select("*").eq("event_id", id).order("position"),
     ]);
   const fields = (fieldRows ?? []) as ProposalField[];
 
-  const voteCounts = new Map<string, number>();
-  for (const v of votes ?? []) {
-    voteCounts.set(v.proposal_id, (voteCounts.get(v.proposal_id) ?? 0) + 1);
-  }
-  const sortedProposals = [...((proposals ?? []) as Proposal[])].sort(
-    (a, b) => (voteCounts.get(b.id) ?? 0) - (voteCounts.get(a.id) ?? 0),
+  const voteSummaries = summarizeVotes(
+    (votes ?? []) as Pick<Vote, "proposal_id" | "tier">[],
+  );
+  const sortedProposals = [...((proposals ?? []) as Proposal[])].sort((a, b) =>
+    compareByDemand(a, b, voteSummaries),
   );
 
   return (
@@ -83,7 +83,7 @@ export default async function EventProposalsPage({
                   <Table.Row>
                     <Table.ColumnHeader>Session</Table.ColumnHeader>
                     <Table.ColumnHeader>Proposed by</Table.ColumnHeader>
-                    <Table.ColumnHeader textAlign="center">Would attend</Table.ColumnHeader>
+                    <Table.ColumnHeader textAlign="center">Demand</Table.ColumnHeader>
                     <Table.ColumnHeader textAlign="right">Actions</Table.ColumnHeader>
                   </Table.Row>
                 </Table.Header>
@@ -110,7 +110,7 @@ export default async function EventProposalsPage({
                       </Table.Cell>
                       <Table.Cell>{p.proposer_name}</Table.Cell>
                       <Table.Cell textAlign="center" fontWeight="bold">
-                        {voteCounts.get(p.id) ?? 0}
+                        {formatVoteSplit(voteSummaries.get(p.id))}
                       </Table.Cell>
                       <Table.Cell textAlign="right">
                         <Flex gap={2} justify="flex-end">

@@ -64,9 +64,12 @@ export interface ProposalField {
   position: number;
 }
 
+export type VoteTier = "must" | "would";
+
 export interface Vote {
   proposal_id: string;
   attendee_id: string;
+  tier: VoteTier;
 }
 
 export interface Track {

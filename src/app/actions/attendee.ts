@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { attendeeCookieName, getCurrentAttendee, getEventByCode } from "@/lib/attendee";
 import { buildCustomAnswers, missingRequired } from "@/lib/proposalFields";
 import { createClient } from "@/lib/supabase/server";
-import type { ProposalField } from "@/lib/types";
+import type { ProposalField, VoteTier } from "@/lib/types";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -145,12 +145,22 @@ export async function deleteOwnProposal(code: string, proposalId: string) {
   revalidatePath(`/e/${encodeURIComponent(code)}`);
 }
 
-export async function toggleVote(code: string, proposalId: string) {
+export async function setVote(
+  code: string,
+  proposalId: string,
+  tier: VoteTier | null,
+) {
   const token = await requireAttendeeToken(code);
   const supabase = await createClient();
-  await supabase.rpc("toggle_vote", {
+  const { error } = await supabase.rpc("set_vote", {
     p_token: token,
     p_proposal: proposalId,
+    p_tier: tier,
   });
+  if (error) {
+    redirect(
+      `/e/${encodeURIComponent(code)}?error=${encodeURIComponent("Could not save your vote")}`,
+    );
+  }
   revalidatePath(`/e/${encodeURIComponent(code)}`);
 }
