@@ -34,7 +34,7 @@ import { AgendaSummary } from "./AgendaSummary";
 import { CollapsibleBox } from "./CollapsibleBox";
 import { CopyLinkButton } from "./CopyLinkButton";
 
-const STATUS_ORDER: EventStatus[] = ["draft", "proposals", "voting", "published", "archived"];
+const STATUS_ORDER: EventStatus[] = ["draft", "proposals", "voting", "review", "published", "archived"];
 
 export default async function EventAdminPage({
   params,

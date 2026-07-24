@@ -2,6 +2,7 @@ export type EventStatus =
   | "draft"
   | "proposals"
   | "voting"
+  | "review"
   | "published"
   | "archived";
 
@@ -18,6 +19,8 @@ export interface UnconfEvent {
   agenda_published: boolean;
   agenda_day_start: string;
   agenda_day_end: string;
+  draft_seed: number | null;
+  grid_version: number;
   created_at: string;
 }
 
@@ -36,6 +39,15 @@ export interface Attendee {
   id: string;
   event_id: string;
   name: string;
+}
+
+export interface AttendeeUnavailability {
+  id: string;
+  event_id: string;
+  attendee_id: string;
+  day: string;
+  start_time: string;
+  end_time: string;
 }
 
 export interface Proposal {
@@ -86,6 +98,7 @@ export interface AgendaAssignment {
   track_id: string;
   day: string;
   start_time: string;
+  pinned: boolean;
 }
 
 export interface AgendaBlock {
@@ -101,6 +114,7 @@ export const STATUS_LABELS: Record<EventStatus, string> = {
   draft: "Draft",
   proposals: "Collecting proposals",
   voting: "Voting open",
+  review: "Agenda in review",
   published: "Agenda published",
   archived: "Archived",
 };
@@ -109,6 +123,7 @@ export const STATUS_DESCRIPTIONS: Record<EventStatus, string> = {
   draft: "Only you can see this event. Open proposals when you're ready.",
   proposals: "Attendees can join, submit session proposals, and vote.",
   voting: "Proposal submissions are closed. Attendees can still vote.",
+  review: "The draft agenda is visible to attendees. Proposals and voting are closed.",
   published: "Proposals and voting are closed. Attendees see the final agenda.",
   archived: "The event is over. Attendees can no longer access it.",
 };
