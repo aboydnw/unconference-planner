@@ -145,6 +145,35 @@ export async function deleteOwnProposal(code: string, proposalId: string) {
   revalidatePath(`/e/${encodeURIComponent(code)}`);
 }
 
+export async function setUnavailability(code: string, formData: FormData) {
+  const token = await requireAttendeeToken(code);
+  let slots: { day: string; start_time: string; end_time: string }[] = [];
+  try {
+    const parsed = JSON.parse(String(formData.get("slots") ?? "[]"));
+    if (Array.isArray(parsed)) {
+      slots = parsed.filter(
+        (s) =>
+          typeof s?.day === "string" &&
+          typeof s?.start_time === "string" &&
+          typeof s?.end_time === "string",
+      );
+    }
+  } catch {
+    slots = [];
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_unavailability", {
+    p_token: token,
+    p_slots: slots,
+  });
+  if (error) {
+    redirect(
+      `/e/${encodeURIComponent(code)}?error=${encodeURIComponent("Could not save your availability")}`,
+    );
+  }
+  revalidatePath(`/e/${encodeURIComponent(code)}`);
+}
+
 export async function setVote(
   code: string,
   proposalId: string,

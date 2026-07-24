@@ -153,7 +153,7 @@ export function optimize(input: OptimizeInput): OptimizeResult {
       next.push(...without);
     } else {
       const a = pool[rng.int(pool.length)];
-      let b = pool[rng.int(pool.length)];
+      const b = pool[rng.int(pool.length)];
       if (a.proposalId === b.proposalId) continue;
       const durA = durations.get(a.proposalId) ?? null;
       const durB = durations.get(b.proposalId) ?? null;

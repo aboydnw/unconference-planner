@@ -1,7 +1,7 @@
 import NextLink from "next/link";
 import { notFound } from "next/navigation";
 
-import { Container, Heading, Link, Stack } from "@chakra-ui/react";
+import { Badge, Container, Flex, Heading, Link, Stack } from "@chakra-ui/react";
 
 import { AgendaSummary } from "@/app/dashboard/events/[id]/AgendaSummary";
 import { getEventByCode } from "@/lib/attendee";
@@ -22,7 +22,8 @@ export default async function AttendeeAgendaPage({
 }) {
   const { code } = await params;
   const event = (await getEventByCode(code)) as UnconfEvent | null;
-  if (!event || !event.agenda_published) notFound();
+  const isReviewDraft = event?.status === "review" && !event.agenda_published;
+  if (!event || (!event.agenda_published && !isReviewDraft)) notFound();
 
   const supabase = await createClient();
   const [{ data: tracks }, { data: assignments }, { data: blocks }, { data: proposals }] =
@@ -51,7 +52,14 @@ export default async function AttendeeAgendaPage({
           <Link asChild color="teal.600" fontSize="sm">
             <NextLink href={`/e/${encodeURIComponent(code)}`}>← {event.name}</NextLink>
           </Link>
-          <Heading size="xl">Agenda</Heading>
+          <Flex align="center" gap={3} wrap="wrap">
+            <Heading size="xl">Agenda</Heading>
+            {isReviewDraft && (
+              <Badge colorPalette="orange" size="lg">
+                Draft — subject to change
+              </Badge>
+            )}
+          </Flex>
         </Stack>
         <AgendaSummary schedule={schedule} />
       </Stack>

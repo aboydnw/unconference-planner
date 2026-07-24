@@ -27,6 +27,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   STATUS_LABELS,
   formatDateRange,
+  type AttendeeUnavailability,
   type Proposal,
   type ProposalField,
   type Vote,
@@ -34,8 +35,11 @@ import {
 } from "@/lib/types";
 import { compareByDemand, formatVoteSplit, summarizeVotes } from "@/lib/votes";
 
+import { eventDays } from "@/lib/agenda";
+
 import { EditableProposal } from "./EditableProposal";
 import { ProposalFields } from "./ProposalFields";
+import { UnavailabilityPicker } from "./UnavailabilityPicker";
 
 export default async function AttendeeEventPage({
   params,
@@ -53,7 +57,7 @@ export default async function AttendeeEventPage({
   const current = await getCurrentAttendee(event.id);
 
   const supabase = await createClient();
-  const [{ data: proposals }, { data: votes }, { data: fieldRows }] =
+  const [{ data: proposals }, { data: votes }, { data: fieldRows }, { data: myWindows }] =
     await Promise.all([
       supabase
         .from("proposals")
@@ -69,6 +73,14 @@ export default async function AttendeeEventPage({
         .select("*")
         .eq("event_id", event.id)
         .order("position"),
+      current
+        ? supabase
+            .from("attendee_unavailability")
+            .select("*")
+            .eq("attendee_id", current.attendee.id)
+            .order("day")
+            .order("start_time")
+        : Promise.resolve({ data: null }),
     ]);
   const fields = (fieldRows ?? []) as ProposalField[];
 
@@ -85,6 +97,15 @@ export default async function AttendeeEventPage({
 
   const canPropose = event.status === "proposals";
   const canVote = event.status === "proposals" || event.status === "voting";
+  const inReview = event.status === "review";
+  const days = eventDays(event.start_date, event.end_date);
+  const unavailabilityWindows = ((myWindows ?? []) as AttendeeUnavailability[]).map(
+    (w) => ({
+      day: w.day,
+      start_time: w.start_time.slice(0, 5),
+      end_time: w.end_time.slice(0, 5),
+    }),
+  );
 
   return (
     <Container maxW="2xl" py={10}>
@@ -118,6 +139,20 @@ export default async function AttendeeEventPage({
               <Link asChild fontWeight="bold" color="inherit">
                 <NextLink href={`/e/${encodeURIComponent(code)}/agenda`}>
                   View the agenda →
+                </NextLink>
+              </Link>
+            </Alert.Title>
+          </Alert.Root>
+        )}
+
+        {inReview && !event.agenda_published && (
+          <Alert.Root status="info">
+            <Alert.Indicator />
+            <Alert.Title>
+              The draft agenda is ready for review.{" "}
+              <Link asChild fontWeight="bold" color="inherit">
+                <NextLink href={`/e/${encodeURIComponent(code)}/agenda`}>
+                  See the draft →
                 </NextLink>
               </Link>
             </Alert.Title>
@@ -162,6 +197,14 @@ export default async function AttendeeEventPage({
             </Text>
             .
           </Text>
+        )}
+
+        {current && canVote && days.length > 0 && (
+          <UnavailabilityPicker
+            code={code}
+            days={days}
+            initial={unavailabilityWindows}
+          />
         )}
 
         {current && canPropose && (
