@@ -237,7 +237,12 @@ export default async function AttendeeEventPage({
               <Box key={p.id} borderWidth="1px" borderRadius="lg" p={5}>
                 <Flex justify="space-between" align="flex-start" gap={4}>
                   <Stack gap={1} flex="1">
-                    <Heading size="sm">{p.title}</Heading>
+                    <Flex align="center" gap={2} wrap="wrap">
+                      <Heading size="sm">{p.title}</Heading>
+                      {p.pitched_in_review && (
+                        <Badge colorPalette="purple">Pitched during review</Badge>
+                      )}
+                    </Flex>
                     {p.description && (
                       <Text fontSize="sm" color="fg.muted">
                         {p.description}
