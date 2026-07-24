@@ -152,10 +152,15 @@ export async function setVote(
 ) {
   const token = await requireAttendeeToken(code);
   const supabase = await createClient();
-  await supabase.rpc("set_vote", {
+  const { error } = await supabase.rpc("set_vote", {
     p_token: token,
     p_proposal: proposalId,
     p_tier: tier,
   });
+  if (error) {
+    redirect(
+      `/e/${encodeURIComponent(code)}?error=${encodeURIComponent("Could not save your vote")}`,
+    );
+  }
   revalidatePath(`/e/${encodeURIComponent(code)}`);
 }

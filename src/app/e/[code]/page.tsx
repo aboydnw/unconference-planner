@@ -32,7 +32,7 @@ import {
   type Vote,
   type VoteTier,
 } from "@/lib/types";
-import { formatVoteSplit, summarizeVotes, weightedDemand } from "@/lib/votes";
+import { compareByDemand, formatVoteSplit, summarizeVotes } from "@/lib/votes";
 
 import { EditableProposal } from "./EditableProposal";
 import { ProposalFields } from "./ProposalFields";
@@ -79,10 +79,8 @@ export default async function AttendeeEventPage({
       myVotes.set(v.proposal_id, v.tier);
     }
   }
-  const sortedProposals = [...((proposals ?? []) as Proposal[])].sort(
-    (a, b) =>
-      weightedDemand(voteSummaries.get(b.id)) -
-      weightedDemand(voteSummaries.get(a.id)),
+  const sortedProposals = [...((proposals ?? []) as Proposal[])].sort((a, b) =>
+    compareByDemand(a, b, voteSummaries),
   );
 
   const canPropose = event.status === "proposals";

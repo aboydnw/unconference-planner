@@ -29,9 +29,9 @@ reveal it when ready.
 
 **Attendees** never make an account. They open a share link (`/e/<CODE>`),
 enter a name, and are remembered on that browser via an httpOnly cookie. They
-submit proposals, browse everyone else's, and mark each one **must-attend** or
-**would-attend** (a two-tier interest signal that powers demand-ranked views
-and, soon, auto-drafted agendas).
+submit proposals, browse everyone else's, and mark each one **must-attend**,
+**would-attend**, or skip it (a two-tier interest signal that powers
+demand-ranked views and, soon, auto-drafted agendas).
 
 ## Stack
 
