@@ -147,20 +147,27 @@ export async function deleteOwnProposal(code: string, proposalId: string) {
 
 export async function setUnavailability(code: string, formData: FormData) {
   const token = await requireAttendeeToken(code);
-  let slots: { day: string; start_time: string; end_time: string }[] = [];
+  const badPayload = `/e/${encodeURIComponent(code)}?error=${encodeURIComponent(
+    "Could not read your availability — nothing was changed",
+  )}`;
+
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(String(formData.get("slots") ?? "[]"));
-    if (Array.isArray(parsed)) {
-      slots = parsed.filter(
-        (s) =>
-          typeof s?.day === "string" &&
-          typeof s?.start_time === "string" &&
-          typeof s?.end_time === "string",
-      );
-    }
+    parsed = JSON.parse(String(formData.get("slots") ?? ""));
   } catch {
-    slots = [];
+    parsed = undefined;
   }
+  const isSlot = (s: unknown): s is { day: string; start_time: string; end_time: string } =>
+    typeof s === "object" &&
+    s !== null &&
+    typeof (s as Record<string, unknown>).day === "string" &&
+    typeof (s as Record<string, unknown>).start_time === "string" &&
+    typeof (s as Record<string, unknown>).end_time === "string";
+  // An empty list legitimately means "clear all", so a malformed payload must
+  // never silently degrade into one.
+  if (!Array.isArray(parsed) || !parsed.every(isSlot)) redirect(badPayload);
+  const slots = parsed as { day: string; start_time: string; end_time: string }[];
+
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_unavailability", {
     p_token: token,

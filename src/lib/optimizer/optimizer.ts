@@ -137,7 +137,7 @@ export function optimize(input: OptimizeInput): OptimizeResult {
     temp *= coolingRate;
     const pool = movable();
     if (pool.length === 0) break;
-    const next = [...grid];
+    let next: Placement[];
 
     if (pool.length < 2 || rng.next() < 0.5) {
       const target = pool[rng.int(pool.length)];
@@ -145,19 +145,18 @@ export function optimize(input: OptimizeInput): OptimizeResult {
       const cells = candidateStarts(input.shape, dur);
       if (cells.length === 0) continue;
       const cell = cells[rng.int(cells.length)];
-      const without = next.filter((g) => g.proposalId !== target.proposalId);
+      const without = grid.filter((g) => g.proposalId !== target.proposalId);
       const trackId = freeTrack(input.shape, without, durations, cell.day, cell.startTime, dur);
       if (!trackId) continue;
       without.push({ proposalId: target.proposalId, trackId, ...cell });
-      next.length = 0;
-      next.push(...without);
+      next = without;
     } else {
       const a = pool[rng.int(pool.length)];
       const b = pool[rng.int(pool.length)];
       if (a.proposalId === b.proposalId) continue;
       const durA = durations.get(a.proposalId) ?? null;
       const durB = durations.get(b.proposalId) ?? null;
-      const without = next.filter(
+      const without = grid.filter(
         (g) => g.proposalId !== a.proposalId && g.proposalId !== b.proposalId,
       );
       const trackForA = freeTrack(input.shape, without, durations, b.day, b.startTime, durA);
@@ -174,8 +173,7 @@ export function optimize(input: OptimizeInput): OptimizeResult {
         day: a.day,
         startTime: a.startTime,
       });
-      next.length = 0;
-      next.push(...withA);
+      next = withA;
     }
 
     const nextScore = scorePlacements(next, objective);

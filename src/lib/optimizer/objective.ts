@@ -38,7 +38,8 @@ function overlapsWindow(
 function attendeeSatisfaction(placements: Placement[], input: ObjectiveInput): number {
   const byId = new Map(placements.map((p) => [p.proposalId, p]));
   let total = 0;
-  for (const wanted of input.interest.wants.values()) {
+  for (const [attendeeId, wanted] of input.interest.wants) {
+    const away = input.unavailability.get(attendeeId) ?? [];
     const placed = [...wanted.entries()]
       .filter(([proposalId]) => byId.has(proposalId))
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -48,6 +49,7 @@ function attendeeSatisfaction(placements: Placement[], input: ObjectiveInput): n
     let keptWeight = 0;
     for (const [proposalId, weight] of placed) {
       const placement = byId.get(proposalId)!;
+      if (away.some((w) => overlapsWindow(placement, w, input.durations))) continue;
       const clashes = kept.some((k) => timesOverlap(k, placement, input.durations));
       if (!clashes) {
         kept.push(placement);

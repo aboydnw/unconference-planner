@@ -53,7 +53,8 @@ export function UnavailabilityPicker({
           <Heading size="md">Your availability</Heading>
           <Text color="fg.muted" fontSize="sm">
             Only set times you can&apos;t attend — the draft agenda avoids
-            scheduling your session then.
+            scheduling your own session then, and tries to keep the sessions you
+            voted for out of those hours.
           </Text>
         </Stack>
 

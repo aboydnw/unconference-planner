@@ -194,7 +194,7 @@ export async function generateDraft(eventId: string) {
   ] = await Promise.all([
     supabase.from("events").select("*").eq("id", eventId).single<UnconfEvent>(),
     supabase.from("tracks").select("*").eq("event_id", eventId).order("position"),
-    supabase.from("proposals").select("*").eq("event_id", eventId).eq("hidden", false),
+    supabase.from("proposals").select("*").eq("event_id", eventId),
     supabase.from("votes").select("proposal_id, attendee_id, tier").eq("event_id", eventId),
     supabase.from("agenda_assignments").select("*").eq("event_id", eventId),
     supabase.from("agenda_blocks").select("*").eq("event_id", eventId),
@@ -217,9 +217,17 @@ export async function generateDraft(eventId: string) {
   }
 
   const assignmentRows = (assignments ?? []) as AgendaAssignment[];
+  const pinnedIds = new Set(
+    assignmentRows.filter((a) => a.pinned).map((a) => a.proposal_id),
+  );
+  // Hidden sessions aren't candidates, but a pinned one still occupies its cell —
+  // the optimizer needs its duration to schedule around it.
+  const schedulable = ((proposals ?? []) as Proposal[]).filter(
+    (p) => !p.hidden || pinnedIds.has(p.id),
+  );
   const seed = Date.now() % 2147483647;
   const result = optimize({
-    proposals: (proposals ?? []) as Proposal[],
+    proposals: schedulable,
     votes: (votes ?? []) as Vote[],
     attendeeCount: attendeeCount ?? 0,
     unavailability: (unavailability ?? []) as AttendeeUnavailability[],
@@ -236,7 +244,7 @@ export async function generateDraft(eventId: string) {
       day: a.day,
       startTime: a.start_time.slice(0, 5),
     })),
-    pinnedIds: new Set(assignmentRows.filter((a) => a.pinned).map((a) => a.proposal_id)),
+    pinnedIds,
     seed,
   });
 

@@ -74,12 +74,7 @@ export default async function AttendeeEventPage({
         .eq("event_id", event.id)
         .order("position"),
       current
-        ? supabase
-            .from("attendee_unavailability")
-            .select("*")
-            .eq("attendee_id", current.attendee.id)
-            .order("day")
-            .order("start_time")
+        ? supabase.rpc("get_my_unavailability", { p_token: current.token })
         : Promise.resolve({ data: null }),
     ]);
   const fields = (fieldRows ?? []) as ProposalField[];
@@ -99,13 +94,16 @@ export default async function AttendeeEventPage({
   const canVote = event.status === "proposals" || event.status === "voting";
   const inReview = event.status === "review";
   const days = eventDays(event.start_date, event.end_date);
-  const unavailabilityWindows = ((myWindows ?? []) as AttendeeUnavailability[]).map(
-    (w) => ({
-      day: w.day,
-      start_time: w.start_time.slice(0, 5),
-      end_time: w.end_time.slice(0, 5),
-    }),
-  );
+  const unavailabilityWindows = (
+    (myWindows ?? []) as Pick<
+      AttendeeUnavailability,
+      "day" | "start_time" | "end_time"
+    >[]
+  ).map((w) => ({
+    day: w.day,
+    start_time: w.start_time.slice(0, 5),
+    end_time: w.end_time.slice(0, 5),
+  }));
 
   return (
     <Container maxW="2xl" py={10}>
