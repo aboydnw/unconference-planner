@@ -29,8 +29,9 @@ reveal it when ready.
 
 **Attendees** never make an account. They open a share link (`/e/<CODE>`),
 enter a name, and are remembered on that browser via an httpOnly cookie. They
-submit proposals, browse everyone else's, and mark "I'd attend" on the ones they
-want (a binary, RSVP-style signal that tells the organizer expected room sizes).
+submit proposals, browse everyone else's, and mark each one **must-attend** or
+**would-attend** (a two-tier interest signal that powers demand-ranked views
+and, soon, auto-drafted agendas).
 
 ## Stack
 
@@ -63,9 +64,9 @@ notes in `supabase/migrations/0001_initial_schema.sql`.
 
 You need a Supabase project (the free tier is plenty).
 
-1. **Create the database.** Apply the two migrations in `supabase/migrations/`
-   to your project — via the Supabase SQL editor (paste each file), or the
-   Supabase CLI (`supabase db push`).
+1. **Create the database.** Apply the migrations in `supabase/migrations/` in
+   order to your project — via the Supabase SQL editor (paste each file), or
+   the Supabase CLI (`supabase db push`).
 
 2. **Configure env.** Copy `.env.example` to `.env.local` and fill in your
    project URL and anon/publishable key (Project Settings → API):
