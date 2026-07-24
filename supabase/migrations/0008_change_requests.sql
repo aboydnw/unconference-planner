@@ -87,6 +87,11 @@ begin
       or not exists (select 1 from proposals where id = p_other and event_id = v_event.id and hidden = false)) then
     raise exception 'OTHER_PROPOSAL_NOT_FOUND';
   end if;
+  if p_track is not null and not exists (
+    select 1 from tracks where id = p_track and event_id = v_event.id
+  ) then
+    raise exception 'TRACK_NOT_FOUND';
+  end if;
   insert into change_requests (event_id, attendee_id, author_name, kind, proposal_id, other_proposal_id, target_day, target_start_time, target_track_id, rationale, grid_version)
   values (v_event.id, v_att.id, v_att.name, p_kind, p_proposal,
           case when p_kind = 'swap' then p_other else null end,
@@ -122,6 +127,14 @@ begin
   end if;
   if coalesce(trim(p_title), '') = '' then
     raise exception 'TITLE_REQUIRED';
+  end if;
+  if p_track is not null and not exists (
+    select 1 from tracks where id = p_track and event_id = v_event.id
+  ) then
+    raise exception 'TRACK_NOT_FOUND';
+  end if;
+  if p_duration is not null and (p_duration < 15 or p_duration > 480) then
+    raise exception 'INVALID_DURATION';
   end if;
   insert into proposals (event_id, attendee_id, proposer_name, title, description, format, duration_minutes, custom_answers, pitched_in_review)
   values (v_event.id, v_att.id, v_att.name, trim(p_title), coalesce(p_description, ''), nullif(trim(coalesce(p_format, '')), ''), p_duration, coalesce(p_custom, '{}'::jsonb), true)
@@ -178,12 +191,25 @@ set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_att attendees%rowtype;
+  v_kind text;
+  v_proposal uuid;
 begin
   select * into v_att from attendees where token = p_token;
   if not found then
     raise exception 'ATTENDEE_NOT_FOUND';
   end if;
-  delete from change_requests where id = p_cr and attendee_id = v_att.id and status = 'open';
+  delete from change_requests
+  where id = p_cr and attendee_id = v_att.id and status = 'open'
+  returning kind, proposal_id into v_kind, v_proposal;
+  -- Withdrawing a pitch must take the session with it; otherwise the proposal
+  -- survives unreferenced and the next generated draft schedules it.
+  if v_kind = 'add' and v_proposal is not null then
+    delete from proposals p
+    where p.id = v_proposal
+      and p.attendee_id = v_att.id
+      and p.pitched_in_review = true
+      and not exists (select 1 from agenda_assignments a where a.proposal_id = p.id);
+  end if;
 end;
 $$;
 

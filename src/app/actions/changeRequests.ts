@@ -10,7 +10,7 @@ import {
   sweepDecisions,
   type CrInput,
 } from "@/lib/changeRequests";
-import { loadCrContext } from "@/lib/crContext";
+import { loadCrContext, sweepOpenChangeRequests } from "@/lib/crContext";
 import { collectWarnings } from "@/lib/optimizer";
 import { buildCustomAnswers, missingRequired } from "@/lib/proposalFields";
 import { createClient } from "@/lib/supabase/server";
@@ -37,7 +37,7 @@ async function requireReviewEvent(code: string) {
   }
   const current = await getCurrentAttendee(event.id);
   if (!current) fail(code, "Join the event first");
-  return { event, token: current.token };
+  return { event, token: current.token, attendeeId: current.attendee.id };
 }
 
 function str(formData: FormData, name: string): string {
@@ -84,7 +84,7 @@ export async function submitChangeRequest(code: string, formData: FormData) {
 }
 
 export async function submitReviewSession(code: string, formData: FormData) {
-  const { event, token } = await requireReviewEvent(code);
+  const { event, token, attendeeId } = await requireReviewEvent(code);
   const title = str(formData, "title");
   if (!title) fail(code, "Session title is required");
 
@@ -111,6 +111,9 @@ export async function submitReviewSession(code: string, formData: FormData) {
     const ctx = await loadCrContext(event);
     const pseudoId = "__new__";
     ctx.grid.durations.set(pseudoId, duration);
+    // Without this the pitcher's own double-booking goes unchecked here and the
+    // request is accepted only to evaluate as blocked the moment it is stored.
+    ctx.grid.proposerOf.set(pseudoId, attendeeId);
     const outcome = evaluateChangeRequest(
       {
         kind: "add",
@@ -227,6 +230,9 @@ export async function applyChangeRequest(eventId: string, crId: string) {
     });
 
     if (!error) {
+      // The invalidation list was computed before the apply; a request submitted
+      // in that window would otherwise stay open against a grid that broke it.
+      await sweepOpenChangeRequests(eventId);
       const titleById = new Map(ctx.proposals.map((p) => [p.id, p.title]));
       const before = collectWarnings(ctx.grid.placements, ctx.objective);
       const regressions = collectWarnings(outcome.after, ctx.objective)

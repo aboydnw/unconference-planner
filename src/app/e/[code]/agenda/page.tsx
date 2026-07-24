@@ -66,7 +66,6 @@ export default async function AttendeeAgendaPage({
     { data: blocks },
     { data: proposals },
     { data: changeRequests },
-    { data: reactions },
     { data: fieldRows },
   ] = await Promise.all([
     supabase.from("tracks").select("*").eq("event_id", event.id).order("position"),
@@ -81,9 +80,6 @@ export default async function AttendeeAgendaPage({
           .order("created_at")
       : Promise.resolve({ data: null }),
     inReview
-      ? supabase.from("change_request_reactions").select("*")
-      : Promise.resolve({ data: null }),
-    inReview
       ? supabase
           .from("proposal_fields")
           .select("*")
@@ -91,6 +87,16 @@ export default async function AttendeeAgendaPage({
           .order("position")
       : Promise.resolve({ data: null }),
   ]);
+
+  // Scoped to this event's requests: the table carries no event_id, and an
+  // unfiltered read would hit PostgREST's row cap once other events fill it.
+  const crRowIds = ((changeRequests ?? []) as ChangeRequest[]).map((cr) => cr.id);
+  const { data: reactions } = crRowIds.length
+    ? await supabase
+        .from("change_request_reactions")
+        .select("*")
+        .in("change_request_id", crRowIds)
+    : { data: [] };
 
   const proposalRows = (proposals ?? []) as Proposal[];
   const assignmentRows = (assignments ?? []) as AgendaAssignment[];

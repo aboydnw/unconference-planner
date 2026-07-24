@@ -1,4 +1,4 @@
-import { overlaps, sessionEndMinutes, timeToMinutes } from "@/lib/agenda";
+import { SLOT_MINUTES, overlaps, sessionEndMinutes, timeToMinutes } from "@/lib/agenda";
 import {
   freeTrack,
   timesOverlap,
@@ -35,7 +35,7 @@ export interface CrInput {
 export type CrOutcome =
   | { ok: true; applicable: true; after: Placement[] }
   | { ok: true; applicable: false; note: string }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; satisfied?: boolean };
 
 function shapeOf(grid: CrGrid): GridShape {
   return {
@@ -60,6 +60,14 @@ function fitsAt(
   const end = sessionEndMinutes(startTime, duration);
   if (!grid.days.includes(day)) {
     return { ok: false, reason: "the target day is not an event day" };
+  }
+  // Off-grid starts render nowhere on the 30-minute grid, leaving a session the
+  // organizer can neither see nor remove.
+  if (start % SLOT_MINUTES !== 0) {
+    return { ok: false, reason: "the target time is not on the schedule grid" };
+  }
+  if (trackId && !grid.trackIds.includes(trackId)) {
+    return { ok: false, reason: "that room is not part of this event" };
   }
   if (start < timeToMinutes(grid.dayStart) || end > timeToMinutes(grid.dayEnd)) {
     return { ok: false, reason: "the session would not fit inside the daily hours" };
@@ -116,6 +124,20 @@ export function evaluateChangeRequest(cr: CrInput, grid: CrGrid): CrOutcome {
     if (!cr.target_day || !cr.target_start_time) {
       return { ok: false, reason: "the request has no target slot" };
     }
+    // Already where the request asks for (organizer may have moved it by hand):
+    // the ask is fulfilled, not impossible — checked before fitsAt, which would
+    // otherwise offer a pointless relocation to another room.
+    if (
+      placed.day === cr.target_day &&
+      placed.startTime === cr.target_start_time &&
+      (!cr.target_track_id || cr.target_track_id === placed.trackId)
+    ) {
+      return {
+        ok: false,
+        reason: "the session is already in that slot",
+        satisfied: true,
+      };
+    }
     const others = grid.placements.filter((p) => p.proposalId !== cr.proposal_id);
     const fit = fitsAt(
       grid,
@@ -126,13 +148,6 @@ export function evaluateChangeRequest(cr: CrInput, grid: CrGrid): CrOutcome {
       cr.target_track_id,
     );
     if (!fit.ok) return fit;
-    if (
-      placed.day === cr.target_day &&
-      placed.startTime === cr.target_start_time &&
-      placed.trackId === fit.trackId
-    ) {
-      return { ok: false, reason: "the session is already in that slot" };
-    }
     return {
       ok: true,
       applicable: true,
@@ -241,7 +256,11 @@ export function sweepDecisions(
   const out: { id: string; reason: string }[] = [];
   for (const cr of open) {
     const outcome = evaluateChangeRequest(cr, grid);
-    if (!outcome.ok) out.push({ id: cr.id, reason: outcome.reason });
+    // A request the grid already satisfies stays open for the organizer to
+    // close — marking it "no longer possible" would be the opposite of true.
+    if (!outcome.ok && !outcome.satisfied) {
+      out.push({ id: cr.id, reason: outcome.reason });
+    }
   }
   return out;
 }

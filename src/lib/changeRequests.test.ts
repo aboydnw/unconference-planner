@@ -89,6 +89,33 @@ describe("evaluateChangeRequest move", () => {
     expect(evaluateChangeRequest(cr({ proposal_id: "c" }), grid).ok).toBe(false);
     expect(evaluateChangeRequest(cr({ proposal_id: "ghost" }), grid).ok).toBe(false);
   });
+  it("blocks a start time that is off the 30-minute grid", () => {
+    const o = evaluateChangeRequest(cr({ target_start_time: "11:15" }), grid);
+    expect(o.ok).toBe(false);
+    if (o.ok) throw new Error("expected blocked");
+    expect(o.reason).toContain("schedule grid");
+  });
+  it("blocks a room that belongs to another event", () => {
+    const o = evaluateChangeRequest(cr({ target_track_id: "other-event-track" }), grid);
+    expect(o.ok).toBe(false);
+    if (o.ok) throw new Error("expected blocked");
+    expect(o.reason).toContain("not part of this event");
+  });
+  it("reports an already-satisfied move rather than an impossible one", () => {
+    const sameSlot = evaluateChangeRequest(
+      cr({ target_start_time: "09:00", target_track_id: "t2" }),
+      grid,
+    );
+    if (sameSlot.ok) throw new Error("expected not applicable");
+    expect(sameSlot.satisfied).toBe(true);
+
+    const roomAgnostic = evaluateChangeRequest(
+      cr({ target_start_time: "09:00", target_track_id: null }),
+      grid,
+    );
+    if (roomAgnostic.ok) throw new Error("expected not applicable");
+    expect(roomAgnostic.satisfied).toBe(true);
+  });
 });
 
 describe("evaluateChangeRequest swap", () => {
@@ -160,6 +187,10 @@ describe("sweepDecisions", () => {
     const decisions = sweepDecisions(open, after);
     expect(decisions.map((d) => d.id)).toEqual(["cr1"]);
     expect(decisions[0].reason).toBeTruthy();
+  });
+  it("leaves a request the organizer already fulfilled by hand alone", () => {
+    const open = [{ id: "cr1", ...cr({ target_start_time: "09:00" }) }];
+    expect(sweepDecisions(open, grid)).toEqual([]);
   });
 });
 

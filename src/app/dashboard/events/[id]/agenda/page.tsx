@@ -73,15 +73,22 @@ export default async function AgendaBuilderPage({
     { data: blocks },
     { data: votes },
     { data: changeRequests },
-    { data: reactions },
     ctx,
   ] = await Promise.all([
     supabase.from("agenda_blocks").select("*").eq("event_id", id).order("day").order("start_time"),
     supabase.from("votes").select("proposal_id, attendee_id, tier").eq("event_id", id),
     supabase.from("change_requests").select("*").eq("event_id", id).order("created_at"),
-    supabase.from("change_request_reactions").select("*"),
     loadCrContext(event),
   ]);
+  // Scoped to this event's requests: the table carries no event_id, and an
+  // unfiltered read would hit PostgREST's row cap once other events fill it.
+  const crRowIds = ((changeRequests ?? []) as ChangeRequest[]).map((cr) => cr.id);
+  const { data: reactions } = crRowIds.length
+    ? await supabase
+        .from("change_request_reactions")
+        .select("*")
+        .in("change_request_id", crRowIds)
+    : { data: [] };
 
   const voteSummaries = Object.fromEntries(
     summarizeVotes((votes ?? []) as Pick<Vote, "proposal_id" | "tier">[]),

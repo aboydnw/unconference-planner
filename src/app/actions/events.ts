@@ -100,6 +100,14 @@ export async function toggleAgendaPublished(
     .from("events")
     .update({ agenda_published: published })
     .eq("id", eventId);
+  if (published) {
+    // Publishing closes the review loop whichever control the organizer used.
+    await supabase
+      .from("change_requests")
+      .update({ status: "expired" })
+      .eq("event_id", eventId)
+      .eq("status", "open");
+  }
   revalidatePath(`/dashboard/events/${eventId}/agenda`);
   revalidatePath(`/dashboard/events/${eventId}`);
 }
