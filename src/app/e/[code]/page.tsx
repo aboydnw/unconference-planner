@@ -19,8 +19,8 @@ import {
 import {
   deleteOwnProposal,
   joinEvent,
+  setVote,
   submitProposal,
-  toggleVote,
 } from "@/app/actions/attendee";
 import { getCurrentAttendee, getEventByCode } from "@/lib/attendee";
 import { createClient } from "@/lib/supabase/server";
@@ -30,7 +30,9 @@ import {
   type Proposal,
   type ProposalField,
   type Vote,
+  type VoteTier,
 } from "@/lib/types";
+import { formatVoteSplit, summarizeVotes, weightedDemand } from "@/lib/votes";
 
 import { EditableProposal } from "./EditableProposal";
 import { ProposalFields } from "./ProposalFields";
@@ -60,7 +62,7 @@ export default async function AttendeeEventPage({
         .eq("hidden", false),
       supabase
         .from("votes")
-        .select("proposal_id, attendee_id")
+        .select("proposal_id, attendee_id, tier")
         .eq("event_id", event.id),
       supabase
         .from("proposal_fields")
@@ -70,16 +72,17 @@ export default async function AttendeeEventPage({
     ]);
   const fields = (fieldRows ?? []) as ProposalField[];
 
-  const voteCounts = new Map<string, number>();
-  const myVotes = new Set<string>();
+  const voteSummaries = summarizeVotes((votes ?? []) as Vote[]);
+  const myVotes = new Map<string, VoteTier>();
   for (const v of (votes ?? []) as Vote[]) {
-    voteCounts.set(v.proposal_id, (voteCounts.get(v.proposal_id) ?? 0) + 1);
     if (current && v.attendee_id === current.attendee.id) {
-      myVotes.add(v.proposal_id);
+      myVotes.set(v.proposal_id, v.tier);
     }
   }
   const sortedProposals = [...((proposals ?? []) as Proposal[])].sort(
-    (a, b) => (voteCounts.get(b.id) ?? 0) - (voteCounts.get(a.id) ?? 0),
+    (a, b) =>
+      weightedDemand(voteSummaries.get(b.id)) -
+      weightedDemand(voteSummaries.get(a.id)),
   );
 
   const canPropose = event.status === "proposals";
@@ -188,7 +191,7 @@ export default async function AttendeeEventPage({
           )}
           {sortedProposals.map((p) => {
             const isMine = current && p.attendee_id === current.attendee.id;
-            const voted = myVotes.has(p.id);
+            const myTier = myVotes.get(p.id) ?? null;
             return (
               <Box key={p.id} borderWidth="1px" borderRadius="lg" p={5}>
                 <Flex justify="space-between" align="flex-start" gap={4}>
@@ -211,20 +214,41 @@ export default async function AttendeeEventPage({
                   </Stack>
                   <Stack gap={2} align="flex-end">
                     {current && canVote ? (
-                      <form action={toggleVote.bind(null, code, p.id)}>
-                        <Button
-                          type="submit"
-                          size="sm"
-                          variant={voted ? "solid" : "outline"}
-                          colorPalette="teal"
-                        >
-                          {voted ? "✓ Attending" : "I'd attend"} ·{" "}
-                          {voteCounts.get(p.id) ?? 0}
-                        </Button>
-                      </form>
+                      <Stack gap={1} align="flex-end">
+                        <Flex gap={1}>
+                          {(
+                            [
+                              ["Skip", null],
+                              ["Would", "would"],
+                              ["Must ✦", "must"],
+                            ] as const
+                          ).map(([label, tier]) => {
+                            const active = myTier === tier;
+                            return (
+                              <form
+                                key={label}
+                                action={setVote.bind(null, code, p.id, tier)}
+                              >
+                                <Button
+                                  type="submit"
+                                  size="xs"
+                                  variant={active ? "solid" : "outline"}
+                                  colorPalette={tier === null ? "gray" : "teal"}
+                                  aria-pressed={active}
+                                >
+                                  {label}
+                                </Button>
+                              </form>
+                            );
+                          })}
+                        </Flex>
+                        <Text fontSize="xs" color="fg.muted">
+                          {formatVoteSplit(voteSummaries.get(p.id))}
+                        </Text>
+                      </Stack>
                     ) : (
                       <Badge colorPalette="teal" size="lg">
-                        {voteCounts.get(p.id) ?? 0} would attend
+                        {formatVoteSplit(voteSummaries.get(p.id))}
                       </Badge>
                     )}
                     {isMine && canPropose && (
