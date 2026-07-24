@@ -4,7 +4,12 @@ import { useMemo, useState, useTransition } from "react";
 
 import { Badge, Box, Button, Flex, Heading, Stack, Table, Text } from "@chakra-ui/react";
 
-import { assignProposal, deleteBlock, unassignProposal } from "@/app/actions/agenda";
+import {
+  assignProposal,
+  deleteBlock,
+  setAssignmentPinned,
+  unassignProposal,
+} from "@/app/actions/agenda";
 import {
   canPlaceSession,
   durationRows,
@@ -68,6 +73,10 @@ export function AgendaGrid({
 
   function handleUnassign(proposalId: string) {
     startTransition(() => unassignProposal(event.id, proposalId));
+  }
+
+  function handleSetPinned(proposalId: string, pinned: boolean) {
+    startTransition(() => setAssignmentPinned(event.id, proposalId, pinned));
   }
 
   function handleDeleteBlock(blockId: string) {
@@ -221,6 +230,7 @@ export function AgendaGrid({
                                 >
                                   <Stack gap={1}>
                                     <Text fontSize="sm" fontWeight="medium">
+                                      {assignment?.pinned ? "📌 " : ""}
                                       {proposal.title}
                                     </Text>
                                     <Text fontSize="xs" color="fg.muted">
@@ -228,15 +238,28 @@ export function AgendaGrid({
                                       {proposal.duration_minutes ?? 30}m ·{" "}
                                       {formatVoteSplit(voteSummaries[proposal.id])}
                                     </Text>
-                                    <Button
-                                      size="2xs"
-                                      variant="ghost"
-                                      colorPalette="red"
-                                      alignSelf="flex-start"
-                                      onClick={() => handleUnassign(proposal.id)}
-                                    >
-                                      Remove
-                                    </Button>
+                                    <Flex gap={1}>
+                                      <Button
+                                        size="2xs"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          handleSetPinned(
+                                            proposal.id,
+                                            !assignment?.pinned,
+                                          )
+                                        }
+                                      >
+                                        {assignment?.pinned ? "Unpin" : "Pin"}
+                                      </Button>
+                                      <Button
+                                        size="2xs"
+                                        variant="ghost"
+                                        colorPalette="red"
+                                        onClick={() => handleUnassign(proposal.id)}
+                                      >
+                                        Remove
+                                      </Button>
+                                    </Flex>
                                   </Stack>
                                 </Table.Cell>
                               );

@@ -19,19 +19,25 @@ through phases:
 | Draft | Nothing yet — the event is private to you. |
 | Collecting proposals | Join, submit sessions, and vote. |
 | Voting open | Submissions closed; voting still open. |
+| Agenda in review | Attendees see the draft agenda; proposals and voting are closed. |
 | Agenda published | Everything closed; attendees see the final grid. |
 | Archived | Event is over and no longer joinable. |
 
 Organizers also moderate proposals (hide/delete), then build the agenda on a
-grid of time slots × rooms — click a session, click a cell to place it.
-Publishing the agenda is a separate toggle, so you can build it privately and
-reveal it when ready.
+grid of time slots × rooms. **Generate draft** builds the grid for you: an
+optimizer places sessions so that must-attend votes clash as little as
+possible, working around each proposer's stated unavailability. Anything you
+place or move by hand is pinned (📌) and never moved by a regenerate — click a
+session, click a cell to place it. Publishing the agenda is a separate toggle,
+so you can build it privately and reveal it when ready.
 
 **Attendees** never make an account. They open a share link (`/e/<CODE>`),
 enter a name, and are remembered on that browser via an httpOnly cookie. They
 submit proposals, browse everyone else's, and mark each one **must-attend**,
-**would-attend**, or skip it (a two-tier interest signal that powers
-demand-ranked views and, soon, auto-drafted agendas).
+**would-attend**, or skip it (the two-tier interest signal that drives the
+auto-drafted agenda). They can also mark times they can't attend, so their own
+session isn't scheduled while they're away — and once the event enters review,
+they see the draft agenda before it's final.
 
 ## Stack
 

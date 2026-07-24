@@ -1,21 +1,27 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import {
   SLOT_MINUTES,
   blockConflictsWithSession,
   canPlaceSession,
+  eventDays,
   minutesToTime,
   sessionEndMinutes,
   timeToMinutes,
 } from "@/lib/agenda";
+import { optimize } from "@/lib/optimizer";
 import { createClient } from "@/lib/supabase/server";
 import type {
   AgendaAssignment,
   AgendaBlock,
+  AttendeeUnavailability,
   Proposal,
+  Track,
   UnconfEvent,
+  Vote,
 } from "@/lib/types";
 
 function agendaPath(eventId: string): string {
@@ -154,7 +160,109 @@ export async function assignProposal(
     track_id: trackId,
     day,
     start_time: startTime,
+    pinned: true,
   });
+  revalidatePath(agendaPath(eventId));
+  revalidatePath(eventHomePath(eventId));
+}
+
+export async function setAssignmentPinned(
+  eventId: string,
+  proposalId: string,
+  pinned: boolean,
+) {
+  const supabase = await createClient();
+  await supabase
+    .from("agenda_assignments")
+    .update({ pinned })
+    .eq("event_id", eventId)
+    .eq("proposal_id", proposalId);
+  revalidatePath(agendaPath(eventId));
+}
+
+export async function generateDraft(eventId: string) {
+  const supabase = await createClient();
+  const [
+    { data: event },
+    { data: tracks },
+    { data: proposals },
+    { data: votes },
+    { data: assignments },
+    { data: blocks },
+    { data: unavailability },
+    { count: attendeeCount },
+  ] = await Promise.all([
+    supabase.from("events").select("*").eq("id", eventId).single<UnconfEvent>(),
+    supabase.from("tracks").select("*").eq("event_id", eventId).order("position"),
+    supabase.from("proposals").select("*").eq("event_id", eventId),
+    supabase.from("votes").select("proposal_id, attendee_id, tier").eq("event_id", eventId),
+    supabase.from("agenda_assignments").select("*").eq("event_id", eventId),
+    supabase.from("agenda_blocks").select("*").eq("event_id", eventId),
+    supabase.from("attendee_unavailability").select("*").eq("event_id", eventId),
+    supabase
+      .from("attendees")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId),
+  ]);
+  if (!event) return;
+
+  const days = eventDays(event.start_date, event.end_date);
+  const trackRows = (tracks ?? []) as Track[];
+  if (days.length === 0 || trackRows.length === 0) {
+    redirect(
+      `${agendaPath(eventId)}?error=${encodeURIComponent(
+        "Set event dates and add at least one room before generating a draft",
+      )}`,
+    );
+  }
+
+  const assignmentRows = (assignments ?? []) as AgendaAssignment[];
+  const pinnedIds = new Set(
+    assignmentRows.filter((a) => a.pinned).map((a) => a.proposal_id),
+  );
+  // Hidden sessions aren't candidates, but a pinned one still occupies its cell —
+  // the optimizer needs its duration to schedule around it.
+  const schedulable = ((proposals ?? []) as Proposal[]).filter(
+    (p) => !p.hidden || pinnedIds.has(p.id),
+  );
+  const seed = Date.now() % 2147483647;
+  const result = optimize({
+    proposals: schedulable,
+    votes: (votes ?? []) as Vote[],
+    attendeeCount: attendeeCount ?? 0,
+    unavailability: (unavailability ?? []) as AttendeeUnavailability[],
+    shape: {
+      days,
+      dayStart: event.agenda_day_start,
+      dayEnd: event.agenda_day_end,
+      trackIds: trackRows.map((t) => t.id),
+      blocks: (blocks ?? []) as AgendaBlock[],
+    },
+    currentDraft: assignmentRows.map((a) => ({
+      proposalId: a.proposal_id,
+      trackId: a.track_id,
+      day: a.day,
+      startTime: a.start_time.slice(0, 5),
+    })),
+    pinnedIds,
+    seed,
+  });
+
+  const { error } = await supabase.rpc("replace_draft_assignments", {
+    p_event: eventId,
+    p_seed: seed,
+    p_placements: result.placements.map((p) => ({
+      proposal_id: p.proposalId,
+      track_id: p.trackId,
+      day: p.day,
+      start_time: p.startTime,
+    })),
+  });
+  if (error) {
+    redirect(
+      `${agendaPath(eventId)}?error=${encodeURIComponent("Could not generate the draft")}`,
+    );
+  }
   revalidatePath(agendaPath(eventId));
   revalidatePath(eventHomePath(eventId));
 }
