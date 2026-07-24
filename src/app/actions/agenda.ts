@@ -12,6 +12,7 @@ import {
   sessionEndMinutes,
   timeToMinutes,
 } from "@/lib/agenda";
+import { sweepOpenChangeRequests } from "@/lib/crContext";
 import { optimize } from "@/lib/optimizer";
 import { createClient } from "@/lib/supabase/server";
 import type {
@@ -68,6 +69,7 @@ export async function setDailyHours(eventId: string, formData: FormData) {
     .from("events")
     .update({ agenda_day_start: start, agenda_day_end: end })
     .eq("id", eventId);
+  await sweepOpenChangeRequests(eventId);
   revalidatePath(agendaPath(eventId));
   revalidatePath(eventHomePath(eventId));
 }
@@ -92,6 +94,7 @@ export async function addTrack(eventId: string, formData: FormData) {
 export async function deleteTrack(eventId: string, trackId: string) {
   const supabase = await createClient();
   await supabase.from("tracks").delete().eq("id", trackId);
+  await sweepOpenChangeRequests(eventId);
   revalidatePath(agendaPath(eventId));
 }
 
@@ -162,6 +165,7 @@ export async function assignProposal(
     start_time: startTime,
     pinned: true,
   });
+  await sweepOpenChangeRequests(eventId);
   revalidatePath(agendaPath(eventId));
   revalidatePath(eventHomePath(eventId));
 }
@@ -255,6 +259,7 @@ export async function generateDraft(eventId: string) {
       `${agendaPath(eventId)}?error=${encodeURIComponent("Could not generate the draft")}`,
     );
   }
+  await sweepOpenChangeRequests(eventId);
   revalidatePath(agendaPath(eventId));
   revalidatePath(eventHomePath(eventId));
 }
@@ -265,6 +270,7 @@ export async function unassignProposal(eventId: string, proposalId: string) {
     .from("agenda_assignments")
     .delete()
     .eq("proposal_id", proposalId);
+  await sweepOpenChangeRequests(eventId);
   revalidatePath(agendaPath(eventId));
   revalidatePath(eventHomePath(eventId));
 }
@@ -294,6 +300,7 @@ export async function addBlock(eventId: string, formData: FormData) {
     end_time: end,
     label: String(formData.get("label") ?? "").trim(),
   });
+  await sweepOpenChangeRequests(eventId);
   revalidatePath(agendaPath(eventId));
   revalidatePath(eventHomePath(eventId));
 }

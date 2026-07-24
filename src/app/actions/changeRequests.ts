@@ -4,11 +4,22 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getCurrentAttendee, getEventByCode } from "@/lib/attendee";
-import { evaluateChangeRequest, type CrInput } from "@/lib/changeRequests";
+import {
+  crInputOf,
+  evaluateChangeRequest,
+  sweepDecisions,
+  type CrInput,
+} from "@/lib/changeRequests";
 import { loadCrContext } from "@/lib/crContext";
+import { collectWarnings } from "@/lib/optimizer";
 import { buildCustomAnswers, missingRequired } from "@/lib/proposalFields";
 import { createClient } from "@/lib/supabase/server";
-import type { ChangeRequestKind, ProposalField } from "@/lib/types";
+import type {
+  ChangeRequest,
+  ChangeRequestKind,
+  ProposalField,
+  UnconfEvent,
+} from "@/lib/types";
 
 function agendaPath(code: string): string {
   return `/e/${encodeURIComponent(code)}/agenda`;
@@ -147,4 +158,107 @@ export async function withdrawChangeRequest(code: string, crId: string) {
   const supabase = await createClient();
   await supabase.rpc("delete_own_change_request", { p_token: token, p_cr: crId });
   revalidatePath(agendaPath(code));
+}
+
+function organizerAgendaPath(eventId: string): string {
+  return `/dashboard/events/${eventId}/agenda`;
+}
+
+/**
+ * Revalidates a change request against the live grid and applies it, sweeping
+ * the requests it invalidates in the same transaction. Retries when a
+ * concurrent apply bumped the grid version first.
+ */
+export async function applyChangeRequest(eventId: string, crId: string) {
+  const supabase = await createClient();
+  let failure = "Could not apply the change";
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const [{ data: event }, { data: crRow }] = await Promise.all([
+      supabase.from("events").select("*").eq("id", eventId).single<UnconfEvent>(),
+      supabase.from("change_requests").select("*").eq("id", crId).single<ChangeRequest>(),
+    ]);
+    if (!event || !crRow) break;
+    if (crRow.status !== "open") {
+      failure = "This request has already been resolved";
+      break;
+    }
+
+    const ctx = await loadCrContext(event);
+    const outcome = evaluateChangeRequest(crInputOf(crRow), ctx.grid);
+    if (!outcome.ok) {
+      failure = `Blocked: ${outcome.reason}`;
+      break;
+    }
+    if (!outcome.applicable) {
+      failure = outcome.note;
+      break;
+    }
+
+    const beforeById = new Map(ctx.grid.placements.map((p) => [p.proposalId, p]));
+    const changed = outcome.after.filter((p) => {
+      const b = beforeById.get(p.proposalId);
+      return !b || b.day !== p.day || b.startTime !== p.startTime || b.trackId !== p.trackId;
+    });
+
+    const { data: openRows } = await supabase
+      .from("change_requests")
+      .select("*")
+      .eq("event_id", eventId)
+      .eq("status", "open")
+      .neq("id", crId);
+    const afterGrid = { ...ctx.grid, placements: outcome.after };
+    const invalidations = sweepDecisions(
+      ((openRows ?? []) as ChangeRequest[]).map(crInputOf),
+      afterGrid,
+    );
+
+    const { error } = await supabase.rpc("apply_change_request_tx", {
+      p_event: eventId,
+      p_cr: crId,
+      p_expected_version: event.grid_version,
+      p_placements: changed.map((p) => ({
+        proposal_id: p.proposalId,
+        track_id: p.trackId,
+        day: p.day,
+        start_time: p.startTime,
+      })),
+      p_invalidations: invalidations,
+    });
+
+    if (!error) {
+      const titleById = new Map(ctx.proposals.map((p) => [p.id, p.title]));
+      const before = collectWarnings(ctx.grid.placements, ctx.objective);
+      const regressions = collectWarnings(outcome.after, ctx.objective)
+        .filter((w) => !before.includes(w))
+        .map((w) => {
+          let out = w;
+          for (const [pid, title] of titleById) out = out.replaceAll(pid, `“${title}”`);
+          return out;
+        });
+      revalidatePath(organizerAgendaPath(eventId));
+      if (regressions.length > 0) {
+        redirect(
+          `${organizerAgendaPath(eventId)}?notice=${encodeURIComponent(
+            `Applied with trade-offs: ${regressions.join("; ")}`,
+          )}`,
+        );
+      }
+      redirect(organizerAgendaPath(eventId));
+    }
+    if (!String(error.message).includes("STALE_GRID")) break;
+  }
+
+  redirect(`${organizerAgendaPath(eventId)}?error=${encodeURIComponent(failure)}`);
+}
+
+export async function declineChangeRequest(eventId: string, crId: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("change_requests")
+    .update({ status: "declined" })
+    .eq("id", crId)
+    .eq("event_id", eventId)
+    .eq("status", "open");
+  revalidatePath(organizerAgendaPath(eventId));
 }

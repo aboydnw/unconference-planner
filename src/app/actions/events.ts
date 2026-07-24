@@ -80,7 +80,15 @@ export async function updateEvent(eventId: string, formData: FormData) {
 export async function setEventStatus(eventId: string, status: EventStatus) {
   const { supabase } = await requireUser();
   await supabase.from("events").update({ status }).eq("id", eventId);
+  if (status === "published") {
+    await supabase
+      .from("change_requests")
+      .update({ status: "expired" })
+      .eq("event_id", eventId)
+      .eq("status", "open");
+  }
   revalidatePath(`/dashboard/events/${eventId}`);
+  revalidatePath(`/dashboard/events/${eventId}/agenda`);
 }
 
 export async function toggleAgendaPublished(
