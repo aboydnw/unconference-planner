@@ -19,7 +19,7 @@ through phases:
 | Draft | Nothing yet — the event is private to you. |
 | Collecting proposals | Join, submit sessions, and vote. |
 | Voting open | Submissions closed; voting still open. |
-| Agenda in review | Attendees see the draft agenda; proposals and voting are closed. |
+| Agenda in review | Attendees see the draft agenda and can request changes to it; proposals and voting are closed. |
 | Agenda published | Everything closed; attendees see the final grid. |
 | Archived | Event is over and no longer joinable. |
 
@@ -31,6 +31,13 @@ place or move by hand is pinned (📌) and never moved by a regenerate — click
 session, click a cell to place it. Publishing the agenda is a separate toggle,
 so you can build it privately and reveal it when ready.
 
+During review the organizer also works a **change-request queue**, ranked by how
+many attendees backed each request. Every row is re-checked against the live
+grid, so a request shows either its effect on the fit score (with any new
+must-attend clashes called out) or the hard constraint blocking it. Apply pins
+the sessions it touches and invalidates the requests the new grid rules out;
+publishing closes whatever is still open.
+
 **Attendees** never make an account. They open a share link (`/e/<CODE>`),
 enter a name, and are remembered on that browser via an httpOnly cookie. They
 submit proposals, browse everyone else's, and mark each one **must-attend**,
@@ -38,6 +45,12 @@ submit proposals, browse everyone else's, and mark each one **must-attend**,
 auto-drafted agenda). They can also mark times they can't attend, so their own
 session isn't scheduled while they're away — and once the event enters review,
 they see the draft agenda before it's final.
+
+Review is participatory: attendees can ask to move a session, swap two, or bring
+an unscheduled one onto the grid, and they can pitch a brand-new session that
+arrives flagged "pitched during review". Everyone 👍s the requests they want,
+which is how the queue gets ranked. The organizer stays the decision-maker —
+nothing changes the agenda until they apply it.
 
 ## Stack
 
@@ -55,7 +68,7 @@ talking to Supabase directly, with security enforced in the database.
   Row Level Security policies scoped to `owner_id = auth.uid()`.
 - **Attendees have no login.** Everything they do goes through a handful of
   `SECURITY DEFINER` Postgres functions (`join_event`, `submit_proposal`,
-  `toggle_vote`, `delete_own_proposal`, …). Each one validates the attendee's
+  `set_vote`, `submit_change_request`, `toggle_cr_reaction`, …). Each one validates the attendee's
   random `token` before touching data, so holding a valid token *is* the
   authorization check. This keeps the service-role key out of the app entirely.
 - The `events` table has **no anonymous read policy**, so event codes can't be
