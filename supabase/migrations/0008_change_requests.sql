@@ -46,7 +46,7 @@ create or replace function public.get_event_by_code(p_code text)
 returns table (id uuid, name text, description text, location text, start_date date, end_date date, status text, agenda_published boolean, agenda_day_start time, agenda_day_end time, grid_version int)
 language sql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, pg_temp
 as $$
   select e.id, e.name, e.description, e.location, e.start_date, e.end_date, e.status, e.agenda_published, e.agenda_day_start, e.agenda_day_end, e.grid_version
   from events e
@@ -59,7 +59,7 @@ create or replace function public.submit_change_request(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_att attendees%rowtype;
@@ -104,7 +104,7 @@ create or replace function public.submit_review_session(
 ) returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_att attendees%rowtype;
@@ -137,7 +137,7 @@ create or replace function public.toggle_cr_reaction(p_token uuid, p_cr uuid)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_att attendees%rowtype;
@@ -174,7 +174,7 @@ create or replace function public.delete_own_change_request(p_token uuid, p_cr u
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_att attendees%rowtype;
@@ -200,7 +200,7 @@ create or replace function public.apply_change_request_tx(
 ) returns void
 language plpgsql
 security invoker
-set search_path = public
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_version int;
