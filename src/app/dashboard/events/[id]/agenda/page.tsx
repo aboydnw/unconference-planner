@@ -19,32 +19,43 @@ import {
 import { addBlock, addTrack, deleteBlock, deleteTrack, generateDraft, setDailyHours } from "@/app/actions/agenda";
 import { toggleAgendaPublished } from "@/app/actions/events";
 import { eventDays } from "@/lib/agenda";
-import { buildInterestModel, collectWarnings } from "@/lib/optimizer";
+import {
+  compareChangeRequests,
+  crInputOf,
+  describeChangeRequest,
+  evaluateChangeRequest,
+} from "@/lib/changeRequests";
+import { loadCrContext } from "@/lib/crContext";
+import { collectWarnings, scorePlacements } from "@/lib/optimizer";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatDay,
   formatTime,
-  type AgendaAssignment,
   type AgendaBlock,
-  type AttendeeUnavailability,
-  type Proposal,
-  type Track,
+  type ChangeRequest,
+  type ChangeRequestReaction,
   type UnconfEvent,
   type Vote,
 } from "@/lib/types";
 import { summarizeVotes } from "@/lib/votes";
 
 import { AgendaGrid } from "./AgendaGrid";
+import {
+  ChangeRequestQueue,
+  type QueueRow,
+  type QueueState,
+  type ResolvedRow,
+} from "./ChangeRequestQueue";
 
 export default async function AgendaBuilderPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; notice?: string }>;
 }) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, notice } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -59,22 +70,25 @@ export default async function AgendaBuilderPage({
   if (!event) notFound();
 
   const [
-    { data: tracks },
-    { data: proposals },
-    { data: assignments },
     { data: blocks },
     { data: votes },
-    { data: unavailability },
-    { count: attendeeCount },
+    { data: changeRequests },
+    ctx,
   ] = await Promise.all([
-    supabase.from("tracks").select("*").eq("event_id", id).order("position"),
-    supabase.from("proposals").select("*").eq("event_id", id).eq("hidden", false),
-    supabase.from("agenda_assignments").select("*").eq("event_id", id),
     supabase.from("agenda_blocks").select("*").eq("event_id", id).order("day").order("start_time"),
     supabase.from("votes").select("proposal_id, attendee_id, tier").eq("event_id", id),
-    supabase.from("attendee_unavailability").select("*").eq("event_id", id),
-    supabase.from("attendees").select("id", { count: "exact", head: true }).eq("event_id", id),
+    supabase.from("change_requests").select("*").eq("event_id", id).order("created_at"),
+    loadCrContext(event),
   ]);
+  // Scoped to this event's requests: the table carries no event_id, and an
+  // unfiltered read would hit PostgREST's row cap once other events fill it.
+  const crRowIds = ((changeRequests ?? []) as ChangeRequest[]).map((cr) => cr.id);
+  const { data: reactions } = crRowIds.length
+    ? await supabase
+        .from("change_request_reactions")
+        .select("*")
+        .in("change_request_id", crRowIds)
+    : { data: [] };
 
   const voteSummaries = Object.fromEntries(
     summarizeVotes((votes ?? []) as Pick<Vote, "proposal_id" | "tier">[]),
@@ -82,46 +96,64 @@ export default async function AgendaBuilderPage({
 
   const days = eventDays(event.start_date, event.end_date);
   const allBlocks = (blocks ?? []) as AgendaBlock[];
-  const proposalRows = (proposals ?? []) as Proposal[];
-  const assignmentRows = (assignments ?? []) as AgendaAssignment[];
+  const proposalRows = ctx.proposals;
+  const assignmentRows = ctx.assignments;
+  const trackRows = ctx.tracks;
 
-  const interest = buildInterestModel(
-    proposalRows,
-    (votes ?? []) as Vote[],
-    attendeeCount ?? 0,
-  );
+  const interest = ctx.objective.interest;
   const titleById = new Map(proposalRows.map((p) => [p.id, p.title]));
-  const warnings = collectWarnings(
-    assignmentRows.map((a) => ({
-      proposalId: a.proposal_id,
-      trackId: a.track_id,
-      day: a.day,
-      startTime: a.start_time.slice(0, 5),
-    })),
-    {
-      interest,
-      durations: new Map(proposalRows.map((p) => [p.id, p.duration_minutes])),
-      proposerOf: new Map(
-        proposalRows.filter((p) => p.attendee_id).map((p) => [p.id, p.attendee_id!]),
-      ),
-      unavailability: new Map(
-        ((unavailability ?? []) as AttendeeUnavailability[]).reduce((acc, u) => {
-          const w = {
-            day: u.day,
-            start_time: u.start_time.slice(0, 5),
-            end_time: u.end_time.slice(0, 5),
-          };
-          acc.set(u.attendee_id, [...(acc.get(u.attendee_id) ?? []), w]);
-          return acc;
-        }, new Map<string, { day: string; start_time: string; end_time: string }[]>()),
-      ),
-      baseline: null,
-    },
-  ).map((w) => {
-    let out = w;
+  const withTitles = (message: string) => {
+    let out = message;
     for (const [pid, title] of titleById) out = out.replaceAll(pid, `“${title}”`);
     return out;
-  });
+  };
+  const warnings = collectWarnings(ctx.grid.placements, ctx.objective).map(withTitles);
+
+  const trackNameById = new Map(trackRows.map((t) => [t.id, t.name]));
+  const crRows = (changeRequests ?? []) as ChangeRequest[];
+  const crIds = new Set(crRows.map((cr) => cr.id));
+  const reactionCounts = new Map<string, number>();
+  for (const r of ((reactions ?? []) as ChangeRequestReaction[]).filter((r) =>
+    crIds.has(r.change_request_id),
+  )) {
+    reactionCounts.set(
+      r.change_request_id,
+      (reactionCounts.get(r.change_request_id) ?? 0) + 1,
+    );
+  }
+  const baseScore = scorePlacements(ctx.grid.placements, ctx.objective);
+  const baseWarnings = collectWarnings(ctx.grid.placements, ctx.objective);
+  const openQueue: QueueRow[] = crRows
+    .filter((cr) => cr.status === "open")
+    .sort((a, b) => compareChangeRequests(a, b, reactionCounts))
+    .map((cr) => {
+      const outcome = evaluateChangeRequest(crInputOf(cr), ctx.grid);
+      const state: QueueState = !outcome.ok
+        ? { kind: "blocked", reason: outcome.reason }
+        : !outcome.applicable
+          ? { kind: "needs-slot", note: outcome.note }
+          : {
+              kind: "ready",
+              delta: scorePlacements(outcome.after, ctx.objective) - baseScore,
+              regressions: collectWarnings(outcome.after, ctx.objective)
+                .filter((w) => !baseWarnings.includes(w))
+                .map(withTitles),
+            };
+      return {
+        cr,
+        description: describeChangeRequest(cr, titleById, trackNameById),
+        reactions: reactionCounts.get(cr.id) ?? 0,
+        state,
+      };
+    });
+  const resolvedQueue: ResolvedRow[] = crRows
+    .filter((cr) => cr.status !== "open")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((cr) => ({
+      cr,
+      description: describeChangeRequest(cr, titleById, trackNameById),
+      reactions: reactionCounts.get(cr.id) ?? 0,
+    }));
 
   return (
     <Container maxW="6xl" py={10}>
@@ -149,6 +181,13 @@ export default async function AgendaBuilderPage({
           <Alert.Root status="error">
             <Alert.Indicator />
             <Alert.Title>{error}</Alert.Title>
+          </Alert.Root>
+        )}
+
+        {notice && (
+          <Alert.Root status="info">
+            <Alert.Indicator />
+            <Alert.Title>{notice}</Alert.Title>
           </Alert.Root>
         )}
 
@@ -182,12 +221,20 @@ export default async function AgendaBuilderPage({
           </Stack>
         </Box>
 
+        {(event.status === "review" || crRows.length > 0) && (
+          <ChangeRequestQueue
+            eventId={event.id}
+            open={openQueue}
+            resolved={resolvedQueue}
+          />
+        )}
+
         <Box borderWidth="1px" borderRadius="lg" p={6}>
           <AgendaGrid
             event={event}
-            tracks={(tracks ?? []) as Track[]}
-            proposals={(proposals ?? []) as Proposal[]}
-            assignments={(assignments ?? []) as AgendaAssignment[]}
+            tracks={trackRows}
+            proposals={proposalRows}
+            assignments={assignmentRows}
             blocks={allBlocks}
             voteSummaries={voteSummaries}
           />
@@ -261,7 +308,7 @@ export default async function AgendaBuilderPage({
             <Stack gap={4}>
               <Heading size="md">Rooms / tracks</Heading>
               <Stack gap={2}>
-                {((tracks ?? []) as Track[]).map((track) => (
+                {trackRows.map((track) => (
                   <Flex key={track.id} justify="space-between" align="center">
                     <Text fontSize="sm">{track.name}</Text>
                     <form action={deleteTrack.bind(null, event.id, track.id)}>

@@ -4,6 +4,7 @@
 
 drop policy if exists attendee_unavailability_select_all on public.attendee_unavailability;
 
+drop policy if exists attendee_unavailability_owner_select on public.attendee_unavailability;
 create policy attendee_unavailability_owner_select on public.attendee_unavailability
   for select to authenticated
   using (exists (select 1 from public.events e where e.id = event_id and e.owner_id = auth.uid()));

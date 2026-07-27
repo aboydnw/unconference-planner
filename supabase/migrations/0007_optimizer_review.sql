@@ -2,22 +2,35 @@
 -- attendee unavailability, and the transactional draft-swap function.
 
 alter table public.events
-  add column draft_seed bigint,
-  add column grid_version int not null default 0;
+  add column if not exists draft_seed bigint,
+  add column if not exists grid_version int not null default 0;
 
 alter table public.events drop constraint if exists events_status_check;
 alter table public.events add constraint events_status_check
   check (status in ('draft','proposals','voting','review','published','archived'));
 
-alter table public.agenda_assignments
-  add column pinned boolean not null default false;
--- Existing assignments were all manually placed → treat as human-touched.
-update public.agenda_assignments set pinned = true;
+-- Existing assignments were all manually placed → treat as human-touched. The
+-- backfill runs only when the column is new, so a re-run cannot re-pin sessions
+-- the optimizer placed since.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'agenda_assignments'
+      and column_name = 'pinned'
+  ) then
+    alter table public.agenda_assignments
+      add column pinned boolean not null default false;
+    update public.agenda_assignments set pinned = true;
+  end if;
+end;
+$$;
 
+drop policy if exists assignments_owner_update on public.agenda_assignments;
 create policy assignments_owner_update on public.agenda_assignments for update to authenticated
   using (exists (select 1 from public.events e where e.id = event_id and e.owner_id = auth.uid()));
 
-create table public.attendee_unavailability (
+create table if not exists public.attendee_unavailability (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
   attendee_id uuid not null references public.attendees(id) on delete cascade,
@@ -25,9 +38,23 @@ create table public.attendee_unavailability (
   start_time time not null,
   end_time time not null
 );
-create index attendee_unavailability_event_idx on public.attendee_unavailability(event_id);
+create index if not exists attendee_unavailability_event_idx on public.attendee_unavailability(event_id);
 alter table public.attendee_unavailability enable row level security;
-create policy attendee_unavailability_select_all on public.attendee_unavailability for select using (true);
+-- Superseded by the owner-scoped policy in 0009; only create it when 0009 has
+-- not run, so re-running this file cannot resurrect public read access.
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'attendee_unavailability'
+      and policyname = 'attendee_unavailability_owner_select'
+  ) then
+    drop policy if exists attendee_unavailability_select_all on public.attendee_unavailability;
+    create policy attendee_unavailability_select_all
+      on public.attendee_unavailability for select using (true);
+  end if;
+end;
+$$;
 
 -- Attendee replaces their unavailability windows wholesale.
 -- p_slots: [{"day":"2026-08-01","start_time":"14:00","end_time":"17:00"}, ...]
