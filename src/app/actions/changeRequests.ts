@@ -62,6 +62,9 @@ export async function submitChangeRequest(code: string, formData: FormData) {
     fail(code, "Pick a target day and time for the move");
   }
   if (kind === "swap" && !cr.other_proposal_id) fail(code, "Pick the session to swap with");
+  if (kind === "swap" && cr.other_proposal_id === cr.proposal_id) {
+    fail(code, "Pick two different sessions to swap");
+  }
 
   const ctx = await loadCrContext(event);
   const outcome = evaluateChangeRequest(cr, ctx.grid);
@@ -105,7 +108,12 @@ export async function submitReviewSession(code: string, formData: FormData) {
   const targetStart = str(formData, "target_start_time") || null;
   const targetTrack = str(formData, "target_track_id") || null;
   const durationRaw = str(formData, "duration_minutes");
-  const duration = durationRaw ? parseInt(durationRaw, 10) : null;
+  const parsedDuration = durationRaw ? parseInt(durationRaw, 10) : null;
+  // NaN would flow into the slot check and on to the RPC as null; reject it.
+  if (parsedDuration !== null && !Number.isFinite(parsedDuration)) {
+    fail(code, "Session length must be a number of minutes");
+  }
+  const duration = parsedDuration;
 
   if (targetDay && targetStart) {
     const ctx = await loadCrContext(event);
@@ -168,12 +176,32 @@ function organizerAgendaPath(eventId: string): string {
 }
 
 /**
+ * RLS already makes these writes no-ops for anyone but the owner, but the
+ * organizer actions take a caller-supplied event id — so check ownership up
+ * front rather than relying on a silent no-op to mean "denied".
+ */
+async function requireOwnedEvent(eventId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: owned } = await supabase
+    .from("events")
+    .select("id")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (!owned) redirect("/dashboard");
+  return supabase;
+}
+
+/**
  * Revalidates a change request against the live grid and applies it, sweeping
  * the requests it invalidates in the same transaction. Retries when a
  * concurrent apply bumped the grid version first.
  */
 export async function applyChangeRequest(eventId: string, crId: string) {
-  const supabase = await createClient();
+  const supabase = await requireOwnedEvent(eventId);
   let failure = "Could not apply the change";
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -259,7 +287,7 @@ export async function applyChangeRequest(eventId: string, crId: string) {
 }
 
 export async function declineChangeRequest(eventId: string, crId: string) {
-  const supabase = await createClient();
+  const supabase = await requireOwnedEvent(eventId);
   await supabase
     .from("change_requests")
     .update({ status: "declined" })

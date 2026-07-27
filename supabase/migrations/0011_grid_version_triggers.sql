@@ -14,10 +14,16 @@ language plpgsql
 security definer
 set search_path = pg_catalog, public, pg_temp
 as $$
-declare
-  v_event uuid := coalesce(new.event_id, old.event_id);
 begin
-  update events set grid_version = grid_version + 1 where id = v_event;
+  -- Bump both sides: a row moved between events invalidates each one's grid.
+  -- OLD/NEW are only assigned for the operations that have them.
+  if tg_op in ('INSERT', 'UPDATE') then
+    update events set grid_version = grid_version + 1 where id = new.event_id;
+  end if;
+  if tg_op = 'DELETE'
+     or (tg_op = 'UPDATE' and old.event_id is distinct from new.event_id) then
+    update events set grid_version = grid_version + 1 where id = old.event_id;
+  end if;
   return null;
 end;
 $$;

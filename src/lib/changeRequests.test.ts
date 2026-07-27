@@ -95,6 +95,11 @@ describe("evaluateChangeRequest move", () => {
     if (o.ok) throw new Error("expected blocked");
     expect(o.reason).toContain("schedule grid");
   });
+  it("measures grid alignment from the daily start time", () => {
+    const offHour: CrGrid = { ...grid, dayStart: "09:15", blocks: [] };
+    expect(evaluateChangeRequest(cr({ target_start_time: "11:15" }), offHour).ok).toBe(true);
+    expect(evaluateChangeRequest(cr({ target_start_time: "11:00" }), offHour).ok).toBe(false);
+  });
   it("blocks a room that belongs to another event", () => {
     const o = evaluateChangeRequest(cr({ target_track_id: "other-event-track" }), grid);
     expect(o.ok).toBe(false);

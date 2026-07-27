@@ -61,9 +61,10 @@ function fitsAt(
   if (!grid.days.includes(day)) {
     return { ok: false, reason: "the target day is not an event day" };
   }
-  // Off-grid starts render nowhere on the 30-minute grid, leaving a session the
-  // organizer can neither see nor remove.
-  if (start % SLOT_MINUTES !== 0) {
+  // Off-grid starts render nowhere on the grid, leaving a session the organizer
+  // can neither see nor remove. Rows run from the daily start time, so
+  // alignment is measured from there rather than from the top of the hour.
+  if ((start - timeToMinutes(grid.dayStart)) % SLOT_MINUTES !== 0) {
     return { ok: false, reason: "the target time is not on the schedule grid" };
   }
   if (trackId && !grid.trackIds.includes(trackId)) {
