@@ -2,10 +2,10 @@
 -- Replaces the binary toggle_vote RPC with set_vote (tier or NULL to clear).
 
 alter table public.votes
-  add column tier text not null default 'would'
+  add column if not exists tier text not null default 'would'
     check (tier in ('must','would'));
 
-drop function public.toggle_vote(uuid, uuid);
+drop function if exists public.toggle_vote(uuid, uuid);
 
 create or replace function public.set_vote(p_token uuid, p_proposal uuid, p_tier text)
 returns void

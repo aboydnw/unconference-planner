@@ -3,9 +3,9 @@
 -- coordinates. Writes go through RPCs; both tables are publicly readable.
 
 alter table public.proposals
-  add column pitched_in_review boolean not null default false;
+  add column if not exists pitched_in_review boolean not null default false;
 
-create table public.change_requests (
+create table if not exists public.change_requests (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
   attendee_id uuid references public.attendees(id) on delete set null,
@@ -23,9 +23,9 @@ create table public.change_requests (
   invalid_reason text,
   created_at timestamptz not null default now()
 );
-create index change_requests_event_idx on public.change_requests(event_id);
+create index if not exists change_requests_event_idx on public.change_requests(event_id);
 
-create table public.change_request_reactions (
+create table if not exists public.change_request_reactions (
   change_request_id uuid not null references public.change_requests(id) on delete cascade,
   attendee_id uuid not null references public.attendees(id) on delete cascade,
   primary key (change_request_id, attendee_id)
@@ -33,15 +33,18 @@ create table public.change_request_reactions (
 
 alter table public.change_requests enable row level security;
 alter table public.change_request_reactions enable row level security;
+drop policy if exists change_requests_select_all on public.change_requests;
 create policy change_requests_select_all on public.change_requests for select using (true);
+drop policy if exists cr_reactions_select_all on public.change_request_reactions;
 create policy cr_reactions_select_all on public.change_request_reactions for select using (true);
 -- Organizer updates directly (decline, sweep, expire); attendee writes via RPC.
+drop policy if exists change_requests_owner_update on public.change_requests;
 create policy change_requests_owner_update on public.change_requests for update to authenticated
   using (exists (select 1 from public.events e where e.id = event_id and e.owner_id = auth.uid()));
 
 -- Attendee-side validation needs the grid bounds; expose them (harmless public
 -- info) plus grid_version. Return type changes → drop + recreate.
-drop function public.get_event_by_code(text);
+drop function if exists public.get_event_by_code(text);
 create or replace function public.get_event_by_code(p_code text)
 returns table (id uuid, name text, description text, location text, start_date date, end_date date, status text, agenda_published boolean, agenda_day_start time, agenda_day_end time, grid_version int)
 language sql
